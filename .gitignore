@@ -1,0 +1,9 @@
+node_modules/
+dist/
+
+# Datos personales (CSV con información de entrenamiento/medidas), incluidos
+# los usados por la app en public/data/.
+*.csv
+
+# Archivo antiguo: no se vuelve a generar.
+Hevy-Progress-Compartir.zip

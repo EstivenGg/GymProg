@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#0b0e11">
+  <title>Hevy Progress — Tu entrenamiento, en perspectiva</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <a class="brand" href="#resumen" aria-label="Hevy Progress, inicio">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Hevy<span>Progress</span></span>
+      </a>
+
+      <nav class="nav-list">
+        <a class="nav-item active" href="#resumen" data-section="resumen">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-16v4h6V4h-6Z"/></svg>
+          Resumen
+        </a>
+        <a class="nav-item" href="#progreso" data-section="progreso">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="m4 17 5-5 4 3 7-8M15 7h5v5"/></svg>
+          Progreso
+        </a>
+        <a class="nav-item" href="#ejercicios" data-section="ejercicios">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 9v6m12-6v6M3 10v4m18-4v4M6 12h12"/></svg>
+          Ejercicios
+        </a>
+        <a class="nav-item" href="#sesiones" data-section="sesiones">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 8h16v12H4V8Zm4 4h3m2 0h3m-8 4h3"/></svg>
+          Sesiones
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="privacy-note">
+          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3m-9 0h8a2 2 0 0 1 2 2v8H6v-8a2 2 0 0 1 2-2Z"/></svg>
+          <div><strong>Sin backend</strong><span>El análisis ocurre en tu navegador.</span></div>
+        </div>
+        <p class="version">HEVY PROGRESS · v2.0</p>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" id="menuButton" aria-label="Abrir menú">
+          <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        </button>
+        <div class="welcome">
+          <p id="todayLabel">TU PROGRESO</p>
+          <h1>Hola, atleta <span aria-hidden="true">👋</span></h1>
+        </div>
+        <div class="top-actions">
+          <div class="period-control custom-select">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 8h16v12H4V8Z"/></svg>
+            <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Periodo de análisis">
+              <span class="custom-select-value">Todo el historial</span>
+              <svg class="custom-select-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <ul class="custom-select-list" role="listbox" tabindex="-1"></ul>
+            <select id="periodSelect" class="native-select" aria-label="Periodo de análisis" tabindex="-1">
+              <option value="30">Últimos 30 días</option>
+              <option value="90">Últimos 90 días</option>
+              <option value="365">Último año</option>
+              <option value="all" selected>Todo el historial</option>
+            </select>
+          </div>
+          <button class="icon-button" id="themeButton" aria-label="Cambiar tema">
+            <svg class="sun-icon" viewBox="0 0 24 24"><path d="M12 3V1m0 22v-2m9-9h2M1 12h2m16.8-7.8 1.4-1.4M2.8 21.2l1.4-1.4m15.6 0 1.4 1.4M2.8 2.8l1.4 1.4M17 12a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z"/></svg>
+            <svg class="moon-icon" viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/></svg>
+          </button>
+          <button class="import-button" id="importButton">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg>
+            <span>Importar CSV</span>
+          </button>
+        </div>
+      </header>
+
+      <section class="view active" id="resumen">
+        <div class="section-heading">
+          <div><span class="eyebrow">PANORAMA GENERAL</span><h2>Tu entrenamiento de un vistazo</h2></div>
+          <div class="data-range" id="dataRange">Esperando datos</div>
+        </div>
+
+        <div class="stat-grid" id="statGrid">
+          <article class="stat-card orange-stat">
+            <div class="stat-icon orange"><svg viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 8h16v12H4V8Zm4 4h3m2 0h3m-8 4h3"/></svg></div>
+            <div class="stat-copy"><span class="stat-label">ENTRENAMIENTOS</span><strong id="statWorkouts">—</strong><small id="statFrequency">Sin datos</small><div class="stat-comparison neutral" id="statWorkoutsComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <svg class="stat-sparkline" id="statWorkoutsSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+          </article>
+          <article class="stat-card blue-stat">
+            <div class="stat-icon blue"><svg viewBox="0 0 24 24"><path d="M6 9v6m12-6v6M3 10v4m18-4v4M6 12h12"/></svg></div>
+            <div class="stat-copy"><span class="stat-label">VOLUMEN TOTAL</span><strong id="statVolume">—</strong><small id="statVolumeSub">Series efectivas</small><div class="stat-comparison neutral" id="statVolumeComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <svg class="stat-sparkline" id="statVolumeSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+          </article>
+          <article class="stat-card violet-stat">
+            <div class="stat-icon violet"><svg viewBox="0 0 24 24"><path d="M12 21s7-4.4 7-11a4 4 0 0 0-7-2.6A4 4 0 0 0 5 10c0 6.6 7 11 7 11Z"/></svg></div>
+            <div class="stat-copy"><span class="stat-label">TIEMPO ENTRENANDO</span><strong id="statTime">—</strong><small id="statTimeSub">Duración registrada</small><div class="stat-comparison neutral" id="statTimeComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <svg class="stat-sparkline" id="statTimeSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+          </article>
+          <article class="stat-card green-stat">
+            <div class="stat-icon green"><svg viewBox="0 0 24 24"><path d="m4 17 5-5 4 3 7-8M15 7h5v5"/></svg></div>
+            <div class="stat-copy"><span class="stat-label">MEJOR RACHA</span><strong id="statStreak">—</strong><small id="statStreakSub">Semanas consecutivas</small><div class="stat-comparison neutral" id="statStreakComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <svg class="stat-sparkline" id="statStreakSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+          </article>
+        </div>
+
+        <div class="dashboard-grid">
+          <article class="panel span-8">
+            <div class="panel-heading"><div><span class="eyebrow">CARGA DE TRABAJO</span><h3>Volumen por sesión</h3></div><div class="legend"><i></i> Volumen (lb)</div></div>
+            <div class="chart chart-large" id="volumeChart"><div class="empty-state">Importa tus datos para ver la evolución.</div></div>
+          </article>
+          <article class="panel span-4 accent-panel">
+            <div class="panel-heading"><div><span class="eyebrow">CONSTANCIA</span><h3>Últimas 12 semanas</h3></div></div>
+            <div class="consistency-total"><strong id="consistencyValue">0%</strong><span id="consistencyCopy">de semanas activas</span></div>
+            <div class="week-bars" id="weekBars"></div>
+            <p class="insight" id="consistencyInsight">Cada entrenamiento suma. Importa tu historial para empezar.</p>
+          </article>
+          <article class="panel span-5">
+            <div class="panel-heading"><div><span class="eyebrow">COMPOSICIÓN</span><h3>Peso corporal</h3></div><span class="metric-chip" id="weightDelta">Sin registros</span></div>
+            <div class="chart chart-medium" id="weightChart"><div class="empty-state">Añade mediciones de peso en Hevy.</div></div>
+          </article>
+          <article class="panel span-7">
+            <div class="panel-heading"><div><span class="eyebrow">DISTRIBUCIÓN</span><h3>Ejercicios más trabajados</h3></div><span class="panel-note">Por series efectivas</span></div>
+            <div class="exercise-bars" id="topExercises"><div class="empty-state">Aún no hay ejercicios.</div></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="progreso">
+        <div class="section-heading"><div><span class="eyebrow">TENDENCIAS</span><h2>Progreso y constancia</h2></div></div>
+        <div class="dashboard-grid">
+          <article class="panel span-8">
+            <div class="panel-heading"><div><span class="eyebrow">ACTIVIDAD</span><h3>Calendario de entrenamiento</h3></div><span class="panel-note" id="heatmapLabel"></span></div>
+            <div class="heatmap-wrap" id="heatmap">
+              <div class="heatmap-body">
+                <div class="heatmap-months" aria-hidden="true"></div>
+                <div class="heatmap-days" aria-hidden="true"><span>L</span><span>M</span><span>X</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+                <div class="heatmap"></div>
+              </div>
+            </div>
+            <div class="heatmap-footer">
+              <p class="heatmap-hint" id="heatmapHint" hidden></p>
+              <div class="heatmap-legend"><span>Menos</span><i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i><span>Más</span></div>
+            </div>
+          </article>
+          <article class="panel span-4">
+            <div class="panel-heading"><div><span class="eyebrow">HÁBITO</span><h3>Tu patrón</h3></div></div>
+            <div class="pattern-list" id="patternList"></div>
+            <p class="insight" id="patternInsight"></p>
+          </article>
+          <article class="panel span-12">
+            <div class="panel-heading"><div><span class="eyebrow">MEJORES MARCAS</span><h3>Récords estimados</h3></div><span class="panel-note">1RM estimado con fórmula de Epley</span></div>
+            <div class="table-wrap"><table><thead><tr><th>Ejercicio</th><th>Mejor serie</th><th>1RM estimado</th><th>Fecha</th></tr></thead><tbody id="recordsTable"></tbody></table></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="view" id="ejercicios">
+        <div class="section-heading exercise-heading">
+          <div><span class="eyebrow">ANÁLISIS DETALLADO</span><h2>Progreso por ejercicio</h2></div>
+          <div class="exercise-select custom-select">
+            <span>Ejercicio</span>
+            <button type="button" class="custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Ejercicio">
+              <span class="custom-select-value">—</span>
+              <svg class="custom-select-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <ul class="custom-select-list" role="listbox" tabindex="-1"></ul>
+            <select id="exerciseSelect" class="native-select" aria-label="Ejercicio" tabindex="-1"></select>
+          </div>
+        </div>
+        <div class="mini-stat-grid" id="miniStatGrid">
+          <article><span>MEJOR PESO</span><strong id="exerciseBestWeight">—</strong></article>
+          <article><span>MEJOR 1RM EST.</span><strong id="exerciseBest1rm">—</strong><span class="record-badge" hidden>PR reciente</span></article>
+          <article><span>REPETICIONES</span><strong id="exerciseReps">—</strong></article>
+          <article><span>SERIES EFECTIVAS</span><strong id="exerciseSets">—</strong></article>
+        </div>
+        <article class="panel">
+          <div class="panel-heading">
+            <div class="performance-heading">
+              <span class="performance-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m13 2-9 12h6l-1 8 9-12h-6l1-8Z"/></svg></span>
+              <div><span class="eyebrow">RENDIMIENTO</span><h3 id="exerciseChartTitle">Evolución de fuerza</h3></div>
+            </div>
+            <div class="performance-meta">
+              <div class="legend"><i></i> 1RM estimado</div>
+              <span class="metric-chip" id="exerciseTrend">Sin comparación</span>
+            </div>
+          </div>
+          <div class="chart chart-xl" id="exerciseChart"></div>
+        </article>
+      </section>
+
+      <section class="view" id="sesiones">
+        <div class="section-heading"><div><span class="eyebrow">HISTORIAL</span><h2>Tus entrenamientos</h2></div><span class="session-count" id="sessionCount"></span></div>
+        <div class="session-list" id="sessionList"></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog class="modal-backdrop" id="importModal" aria-labelledby="modalTitle">
+    <div class="modal">
+      <button class="modal-close" id="modalClose" aria-label="Cerrar">×</button>
+      <span class="modal-icon"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 19h14"/></svg></span>
+      <span class="eyebrow">IMPORTAR HISTORIAL</span>
+      <h2 id="modalTitle">Carga tus archivos de Hevy</h2>
+      <p>Selecciona o arrastra <strong>workout_data.csv</strong> y <strong>measurement_data.csv</strong>. El segundo es opcional.</p>
+      <label class="drop-zone" id="dropZone">
+        <input id="fileInput" type="file" accept=".csv,text/csv" multiple>
+        <svg viewBox="0 0 24 24"><path d="M12 16V4m0 0 4 4m-4-4L8 8M5 20h14"/></svg>
+        <strong>Suelta los CSV aquí</strong>
+        <span>o haz clic para buscarlos</span>
+      </label>
+      <div class="modal-status" id="importStatus">Todo se procesa dentro de tu navegador.</div>
+    </div>
+  </dialog>
+
+  <output class="toast" id="toast" aria-live="polite"></output>
+  <output class="heatmap-tooltip" id="heatmapTooltip" role="tooltip" hidden></output>
+
+  <template id="emptyStateTemplate">
+    <div class="empty-state"></div>
+  </template>
+
+  <template id="exerciseOptionTemplate">
+    <option></option>
+  </template>
+
+  <template id="weekBarTemplate">
+    <i class="week-bar"></i>
+  </template>
+
+  <template id="topExerciseTemplate">
+    <div class="exercise-bar-row">
+      <span data-field="name"></span>
+      <div class="bar-track"><div class="bar-fill"></div></div>
+      <strong data-field="count"></strong>
+    </div>
+  </template>
+
+  <template id="heatmapCellTemplate">
+    <i class="heat-cell"></i>
+  </template>
+
+  <template id="patternItemTemplate">
+    <div class="pattern-item">
+      <span class="pattern-icon"><svg viewBox="0 0 24 24"><path/></svg></span>
+      <div><strong data-field="value"></strong><span data-field="label"></span></div>
+    </div>
+  </template>
+
+  <template id="recordRowTemplate">
+    <tr>
+      <td data-label="Ejercicio"><span data-field="exercise"></span><span class="record-badge" hidden>PR reciente</span><span class="record-badge record-badge-best" hidden>🏆 Mayor 1RM</span></td>
+      <td data-label="Mejor serie" data-field="set"></td>
+      <td data-label="1RM estimado" class="record-value" data-field="estimated-1rm"></td>
+      <td data-label="Fecha" data-field="date"></td>
+    </tr>
+  </template>
+
+  <template id="recordEmptyRowTemplate">
+    <tr class="record-empty-row"><td colspan="4">No hay series con peso y repeticiones.</td></tr>
+  </template>
+
+  <template id="sessionCardTemplate">
+    <article class="session-card">
+      <button class="session-summary" aria-expanded="false">
+        <span class="session-date"><strong data-field="day"></strong><span data-field="month"></span></span>
+        <span class="session-title"><strong data-field="title"></strong><span data-field="subtitle"></span></span>
+        <span class="session-metric"><strong data-field="sets"></strong><span>series efectivas</span></span>
+        <span class="session-metric"><strong data-field="volume"></strong><span>volumen</span></span>
+        <span class="session-metric"><strong data-field="duration"></strong><span>duración</span></span>
+        <span class="chevron"><svg viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg></span>
+      </button>
+      <div class="session-detail"><div class="session-detail-inner"></div></div>
+    </article>
+  </template>
+
+  <template id="sessionExerciseTemplate">
+    <div class="session-exercise">
+      <strong data-field="name"></strong>
+      <div class="set-pills"></div>
+    </div>
+  </template>
+
+  <template id="setPillTemplate">
+    <span class="set-pill"><span data-field="prefix"></span><b data-field="primary"></b><span data-field="secondary"></span></span>
+  </template>
+
+  <script type="module" src="/src/app.js"></script>
+</body>
+</html>
