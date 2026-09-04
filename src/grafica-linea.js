@@ -85,57 +85,79 @@ export function pintarGraficaLinea(contenedor, puntos, opcionesOriginales) {
 
   const sufijoValor = opciones.sufijoValor || '';
   const iniciarEnCero = opciones.iniciarEnCero !== false;
+  const esGraficaDeBarras = opciones.tipo === 'bar';
+  const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const animarGrafica = opciones.animar !== false && !reducirMovimiento;
   const colores = obtenerColoresDeTema();
   const lienzo = obtenerOReemplazarLienzo(contenedor);
+  let conjuntoDeDatos;
+
+  if (esGraficaDeBarras) {
+    conjuntoDeDatos = {
+      data: puntosValidos.map(function (punto) {
+        return punto.valor;
+      }),
+      backgroundColor: convertirHexARGBA(colores.acento, 0.72),
+      hoverBackgroundColor: colores.acento,
+      borderColor: colores.acento,
+      borderWidth: 1,
+      borderSkipped: false,
+      borderRadius: 6,
+      maxBarThickness: 34
+    };
+  } else {
+    conjuntoDeDatos = {
+      data: puntosValidos.map(function (punto) {
+        return punto.valor;
+      }),
+      borderColor: colores.acento,
+      borderWidth: 2.3,
+      pointRadius: 3.5,
+      pointHoverRadius: 5,
+      pointBackgroundColor: colores.superficie,
+      pointBorderColor: colores.acento,
+      pointBorderWidth: 2.3,
+      tension: 0.35,
+      fill: true,
+      backgroundColor: function (contexto) {
+        const grafica = contexto.chart;
+        const areaDeGrafica = grafica.chartArea;
+
+        if (!areaDeGrafica) {
+          return undefined;
+        }
+
+        return crearGradienteDeArea(grafica.ctx, areaDeGrafica, colores.acento);
+      }
+    };
+  }
 
   const instancia = new Chart(lienzo, {
-    type: 'line',
+    type: esGraficaDeBarras ? 'bar' : 'line',
     data: {
       labels: puntosValidos.map(function (punto) {
         return punto.fecha;
       }),
-      datasets: [{
-        data: puntosValidos.map(function (punto) {
-          return punto.valor;
-        }),
-        borderColor: colores.acento,
-        borderWidth: 2.3,
-        pointRadius: 3.5,
-        pointHoverRadius: 5,
-        pointBackgroundColor: colores.superficie,
-        pointBorderColor: colores.acento,
-        pointBorderWidth: 2.3,
-        tension: 0.35,
-        fill: true,
-        backgroundColor: function (contexto) {
-          const grafica = contexto.chart;
-          const areaDeGrafica = grafica.chartArea;
-
-          if (!areaDeGrafica) {
-            return undefined;
-          }
-
-          return crearGradienteDeArea(grafica.ctx, areaDeGrafica, colores.acento);
-        }
-      }]
+      datasets: [conjuntoDeDatos]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: {
-        duration: 550,
+      animation: animarGrafica ? {
+        duration: 380,
         easing: 'easeOutQuart'
-      },
+      } : false,
       interaction: {
         intersect: false,
         mode: 'nearest'
       },
       scales: {
         x: {
+          offset: esGraficaDeBarras,
           grid: { display: false },
           ticks: {
             color: colores.apagado,
-            font: { size: 9 },
+            font: { size: 11 },
             maxRotation: 0,
             autoSkip: true,
             maxTicksLimit: 6,
@@ -153,7 +175,7 @@ export function pintarGraficaLinea(contenedor, puntos, opcionesOriginales) {
           border: { display: false },
           ticks: {
             color: colores.apagado,
-            font: { size: 9 },
+            font: { size: 11 },
             maxTicksLimit: 5,
             callback: function (valor) {
               return formatoNumeroCompacto.format(valor);

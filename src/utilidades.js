@@ -124,10 +124,19 @@ export function animarConteo(elemento, valorFinal, opciones) {
   const formatear = configuracion.formatear || function (valor) {
     return String(Math.round(valor));
   };
+  const reducirMovimiento = typeof matchMedia === 'function'
+    && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (configuracion.animar === false || reducirMovimiento) {
+    contadoresActivos.set(elemento, (contadoresActivos.get(elemento) || 0) + 1);
+    elemento.textContent = formatear(valorFinal) + sufijo;
+    elemento.dataset.valorAnimado = String(valorFinal);
+    return;
+  }
 
   const valorInicial = Number(elemento.dataset.valorAnimado) || 0;
   const idEjecucion = (contadoresActivos.get(elemento) || 0) + 1;
-  const duracionMs = 650;
+  const duracionMs = 380;
   const tiempoInicio = performance.now();
 
   contadoresActivos.set(elemento, idEjecucion);

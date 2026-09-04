@@ -8,7 +8,8 @@ import { inicializarSelectoresPersonalizados } from './selector-personalizado.js
 import { obtenerElemento } from './utilidades.js';
 import { pintarDetalleEjercicio, pintarTableroCompleto } from './vistas/index.js';
 
-export function cambiarSeccion(seccionSolicitada) {
+export function cambiarSeccion(seccionSolicitada, opciones) {
+  const configuracion = opciones || {};
   const seccionesPermitidas = ['resumen', 'progreso', 'ejercicios', 'sesiones'];
   let seccionActiva = 'resumen';
 
@@ -31,9 +32,23 @@ export function cambiarSeccion(seccionSolicitada) {
     barraLateral.classList.remove('open');
   }
 
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth'
+  const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const comportamiento = configuracion.inmediato || reducirMovimiento
+    ? 'auto'
+    : 'smooth';
+
+  window.scrollTo({ top: 0, behavior: comportamiento });
+}
+
+export function estabilizarPosicionInicial() {
+  if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+  }
+
+  window.scrollTo({ top: 0, behavior: 'auto' });
+
+  requestAnimationFrame(function () {
+    window.scrollTo({ top: 0, behavior: 'auto' });
   });
 }
 
@@ -64,7 +79,7 @@ function alternarTema() {
   document.documentElement.dataset.theme = siguienteTema;
   localStorage.setItem('hevy-progress-theme', siguienteTema);
 
-  pintarTableroCompleto();
+  pintarTableroCompleto({ modo: 'tema' });
 }
 
 function alternarMenuMovil() {
@@ -75,9 +90,29 @@ function alternarMenuMovil() {
   }
 }
 
+let temporizadorCambioPeriodo = null;
+
 function manejarCambioPeriodo() {
   aplicarFiltroPeriodo();
-  pintarTableroCompleto();
+  const vistaActiva = document.querySelector('.view.active');
+  const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  clearTimeout(temporizadorCambioPeriodo);
+
+  if (!vistaActiva || reducirMovimiento) {
+    pintarTableroCompleto({ modo: 'periodo' });
+    return;
+  }
+
+  vistaActiva.classList.add('is-period-updating');
+
+  temporizadorCambioPeriodo = window.setTimeout(function () {
+    pintarTableroCompleto({ modo: 'periodo' });
+
+    requestAnimationFrame(function () {
+      vistaActiva.classList.remove('is-period-updating');
+    });
+  }, 70);
 }
 
 function manejarArchivosSeleccionados(evento) {
@@ -192,7 +227,9 @@ export function conectarEventos() {
   inicializarSelectoresPersonalizados();
 
   obtenerElemento('periodSelect').addEventListener('change', manejarCambioPeriodo);
-  obtenerElemento('exerciseSelect').addEventListener('change', pintarDetalleEjercicio);
+  obtenerElemento('exerciseSelect').addEventListener('change', function () {
+    pintarDetalleEjercicio();
+  });
   obtenerElemento('themeButton').addEventListener('click', alternarTema);
   obtenerElemento('menuButton').addEventListener('click', alternarMenuMovil);
   obtenerElemento('importButton').addEventListener('click', abrirModalImportacion);

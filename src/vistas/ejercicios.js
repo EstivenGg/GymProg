@@ -124,9 +124,10 @@ function pintarTendencia(puntos) {
   chip.classList.toggle('negative', diferencia < 0);
 }
 
-function animarNumeroOGuion(elemento, valor) {
+function animarNumeroOGuion(elemento, valor, animar) {
   if (valor > 0) {
     animarConteo(elemento, valor, {
+      animar: animar,
       sufijo: ' lb',
       formatear: function (valorParcial) {
         return formatoNumero.format(valorParcial);
@@ -139,7 +140,7 @@ function animarNumeroOGuion(elemento, valor) {
   elemento.dataset.valorAnimado = '0';
 }
 
-function animarEntradaTarjetasEjercicio() {
+function animarEntradaTarjetasEjercicio(animar) {
   const rejillaTarjetas = obtenerElemento('miniStatGrid');
   const tarjetas = rejillaTarjetas.querySelectorAll('article');
 
@@ -147,43 +148,66 @@ function animarEntradaTarjetasEjercicio() {
     tarjeta.classList.remove('is-entering');
   });
 
+  if (!animar) {
+    return;
+  }
+
   rejillaTarjetas.getBoundingClientRect();
 
   tarjetas.forEach(function (tarjeta, indiceTarjeta) {
-    tarjeta.style.setProperty('--stagger-delay', indiceTarjeta * 70 + 'ms');
+    tarjeta.style.setProperty('--stagger-delay', indiceTarjeta * 40 + 'ms');
     tarjeta.classList.add('is-entering');
   });
 }
 
-function pintarTarjetas(mejorPeso, mejorSerie1RM, repeticionesTotales, cantidadSeries, esRecordReciente) {
-  animarNumeroOGuion(obtenerElemento('exerciseBestWeight'), mejorPeso);
+function pintarTarjetas(
+  mejorPeso,
+  mejorSerie1RM,
+  repeticionesTotales,
+  cantidadSeries,
+  esRecordReciente,
+  configuracion
+) {
+  animarNumeroOGuion(
+    obtenerElemento('exerciseBestWeight'),
+    mejorPeso,
+    configuracion.animarConteos
+  );
 
   const mejor1RM = mejorSerie1RM ? calcular1RMEstimado(mejorSerie1RM) : 0;
   const elemento1RM = obtenerElemento('exerciseBest1rm');
   const tarjeta1RM = elemento1RM.closest('article');
 
-  animarNumeroOGuion(elemento1RM, mejor1RM);
+  animarNumeroOGuion(elemento1RM, mejor1RM, configuracion.animarConteos);
   tarjeta1RM.classList.toggle('is-recent-pr', esRecordReciente);
   tarjeta1RM.querySelector('.record-badge').hidden = !esRecordReciente;
 
-  animarConteo(obtenerElemento('exerciseReps'), repeticionesTotales);
-  animarConteo(obtenerElemento('exerciseSets'), cantidadSeries);
+  animarConteo(obtenerElemento('exerciseReps'), repeticionesTotales, {
+    animar: configuracion.animarConteos
+  });
+  animarConteo(obtenerElemento('exerciseSets'), cantidadSeries, {
+    animar: configuracion.animarConteos
+  });
 
-  animarEntradaTarjetasEjercicio();
+  animarEntradaTarjetasEjercicio(configuracion.animarEntrada);
 }
 
-function pintarGraficaEjercicio(puntos, opciones) {
+function pintarGraficaEjercicio(puntos, opciones, configuracion) {
   const contenedor = obtenerElemento('exerciseChart');
+  const opcionesGrafica = Object.assign({}, opciones, {
+    animar: configuracion.animarGraficas
+  });
 
-  if (contenedor.childElementCount === 0) {
-    pintarGraficaLinea(contenedor, puntos, opciones);
+  if (contenedor.childElementCount === 0 || configuracion.modo !== 'interaccion') {
+    contenedor.classList.remove('is-swapping');
+    pintarGraficaLinea(contenedor, puntos, opcionesGrafica);
     return;
   }
 
   contenedor.classList.add('is-swapping');
 
   window.setTimeout(function () {
-    pintarGraficaLinea(contenedor, puntos, opciones);
+    pintarGraficaLinea(contenedor, puntos, opcionesGrafica);
 
     requestAnimationFrame(function () {
       contenedor.classList.remove('is-swapping');
@@ -191,7 +215,7 @@ function pintarGraficaEjercicio(puntos, opciones) {
   }, 160);
 }
 
-export function pintarSelectorEjercicios() {
+export function pintarSelectorEjercicios(configuracion) {
   const selectorEjercicios = obtenerElemento('exerciseSelect');
   const ejercicioSeleccionado = selectorEjercicios.value;
   const nombresEjercicios = obtenerNombresDeEjerciciosConPeso();
@@ -202,7 +226,7 @@ export function pintarSelectorEjercicios() {
     opcionVacia.value = '';
     opcionVacia.textContent = 'Sin ejercicios con peso';
     selectorEjercicios.replaceChildren(opcionVacia);
-    pintarDetalleEjercicio();
+    pintarDetalleEjercicio(configuracion);
     return;
   }
 
@@ -219,10 +243,16 @@ export function pintarSelectorEjercicios() {
     selectorEjercicios.value = ejercicioSeleccionado;
   }
 
-  pintarDetalleEjercicio();
+  pintarDetalleEjercicio(configuracion);
 }
 
-export function pintarDetalleEjercicio() {
+export function pintarDetalleEjercicio(configuracionOriginal) {
+  const configuracion = configuracionOriginal || {
+    animarConteos: true,
+    animarEntrada: false,
+    animarGraficas: true,
+    modo: 'interaccion'
+  };
   const nombreEjercicio = obtenerElemento('exerciseSelect').value;
   const seriesEjercicio = obtenerSeriesDelEjercicio(nombreEjercicio);
 
@@ -252,7 +282,8 @@ export function pintarDetalleEjercicio() {
     mejorSerie1RM,
     repeticionesTotales,
     seriesEjercicio.length,
-    esRecordReciente
+    esRecordReciente,
+    configuracion
   );
 
   obtenerElemento('exerciseChartTitle').textContent = nombreEjercicio
@@ -267,7 +298,7 @@ export function pintarDetalleEjercicio() {
     iniciarEnCero: false,
     sufijoValor: ' lb',
     mensajeVacio: mensajeVacio
-  });
+  }, configuracion);
 
   pintarTendencia(puntos1RM);
 }

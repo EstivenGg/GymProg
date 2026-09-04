@@ -111,7 +111,7 @@ export async function importarArchivos(archivosSeleccionados) {
   }
 
   aplicarFiltroPeriodo();
-  pintarTableroCompleto();
+  pintarTableroCompleto({ modo: 'datos' });
 
   mostrarEstadoImportacion(
     estadoAplicacion.sesiones.length + ' entrenamientos cargados correctamente.',

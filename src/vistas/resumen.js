@@ -1,18 +1,21 @@
 import {
-  CANTIDAD_SEMANAS_CONSTANCIA,
   estadoAplicacion,
   formatoFechaCorta,
   formatoNumero,
   formatoNumeroCompacto,
   MILISEGUNDOS_POR_DIA
 } from '../configuracion.js';
+import {
+  crearComparativasResumen,
+  crearSeriesResumen
+} from '../comparativas.js';
+import { crearResumenConstancia } from '../constancia.js';
 import { pintarGraficaLinea } from '../grafica-linea.js';
 import {
   calcularMetricasSesion,
   calcularRachaSemanal,
   esSerieEfectiva,
   obtenerDuracionTotal,
-  obtenerInicioDeSemana,
   obtenerVolumenTotal
 } from '../metricas.js';
 import {
@@ -35,6 +38,191 @@ function crearTextoDuracion(duracionMinutos) {
   return horasCompletas + ' h ' + minutosRestantes + ' min';
 }
 
+function crearTextoDiferenciaCantidad(cantidad, unidadSingular, unidadPlural, aumenta) {
+  const unidad = cantidad === 1 ? unidadSingular : unidadPlural;
+  const direccion = aumenta ? 'más' : 'menos';
+
+  return cantidad + ' ' + unidad + ' ' + direccion;
+}
+
+function crearTextoDiferenciaVolumen(diferencia, aumenta) {
+  return formatoNumeroCompacto.format(diferencia)
+    + ' lb '
+    + (aumenta ? 'más' : 'menos');
+}
+
+function crearTextoDiferenciaDuracion(diferencia, aumenta) {
+  return crearTextoDuracion(Math.round(diferencia))
+    + ' '
+    + (aumenta ? 'más' : 'menos');
+}
+
+function pintarComparacion(
+  idElemento,
+  valorActual,
+  valorAnterior,
+  hayHistorialAnterior,
+  descripcionPeriodo,
+  crearTextoDiferencia
+) {
+  const elemento = obtenerElemento(idElemento);
+  const insignia = elemento.querySelector('[data-field="trend"]');
+  const detalle = elemento.querySelector('[data-field="comparison"]');
+
+  elemento.classList.remove('positive', 'negative', 'neutral');
+
+  if (!hayHistorialAnterior) {
+    elemento.classList.add('neutral');
+    insignia.textContent = '—';
+    detalle.textContent = 'Sin historial anterior';
+    elemento.removeAttribute('title');
+    return;
+  }
+
+  const diferencia = valorActual - valorAnterior;
+
+  if (diferencia === 0) {
+    elemento.classList.add('neutral');
+    insignia.textContent = '0%';
+    detalle.textContent = 'Sin cambio · ' + descripcionPeriodo;
+  } else if (valorAnterior === 0) {
+    elemento.classList.add('positive');
+    insignia.textContent = 'NUEVO';
+    detalle.textContent = crearTextoDiferencia(
+      Math.abs(diferencia),
+      diferencia > 0
+    ) + ' · ' + descripcionPeriodo;
+  } else {
+    const porcentaje = Math.round(Math.abs(diferencia / valorAnterior) * 100);
+    const aumenta = diferencia > 0;
+
+    elemento.classList.add(aumenta ? 'positive' : 'negative');
+    insignia.textContent = (aumenta ? '+' : '-') + porcentaje + '%';
+    detalle.textContent = crearTextoDiferencia(
+      Math.abs(diferencia),
+      aumenta
+    ) + ' · ' + descripcionPeriodo;
+  }
+
+  elemento.title = insignia.textContent + ' · ' + detalle.textContent;
+}
+
+function crearGeometriaSparkline(valoresOriginales) {
+  let valores = valoresOriginales.filter(Number.isFinite);
+
+  if (valores.length === 0) {
+    valores = [0, 0];
+  } else if (valores.length === 1) {
+    valores = [valores[0], valores[0]];
+  }
+
+  const minimo = Math.min.apply(null, valores);
+  const maximo = Math.max.apply(null, valores);
+  const rango = maximo - minimo;
+  const puntos = valores.map(function (valor, indice) {
+    const x = 3 + indice * 66 / (valores.length - 1);
+    const proporcion = rango === 0 ? 0.5 : (valor - minimo) / rango;
+    const y = 30 - proporcion * 24;
+
+    return { x: x, y: y };
+  });
+  const comandosLinea = puntos.map(function (punto, indice) {
+    return (indice === 0 ? 'M ' : 'L ') + punto.x + ' ' + punto.y;
+  }).join(' ');
+  const ultimoPunto = puntos[puntos.length - 1];
+
+  return {
+    linea: comandosLinea,
+    area: comandosLinea + ' L ' + ultimoPunto.x + ' 33 L ' + puntos[0].x + ' 33 Z',
+    ultimoPunto: ultimoPunto
+  };
+}
+
+function pintarSparkline(idElemento, valores, animar) {
+  const sparkline = obtenerElemento(idElemento);
+  const geometria = crearGeometriaSparkline(valores);
+
+  const linea = sparkline.querySelector('.sparkline-line');
+  linea.setAttribute('d', geometria.linea);
+  linea.setAttribute('pathLength', '1');
+  sparkline.querySelector('.sparkline-area').setAttribute('d', geometria.area);
+
+  const punto = sparkline.querySelector('.sparkline-point');
+  punto.setAttribute('cx', geometria.ultimoPunto.x);
+  punto.setAttribute('cy', geometria.ultimoPunto.y);
+
+  sparkline.classList.remove('is-updated');
+
+  if (animar) {
+    sparkline.getBoundingClientRect();
+    sparkline.classList.add('is-updated');
+  }
+}
+
+function pintarComparativasYSeries(sesiones, animar) {
+  const comparativas = crearComparativasResumen(
+    estadoAplicacion.sesiones,
+    estadoAplicacion.fechaMasReciente,
+    estadoAplicacion.periodoSeleccionado
+  );
+  const series = crearSeriesResumen(
+    sesiones,
+    estadoAplicacion.fechaMasReciente
+  );
+
+  pintarComparacion(
+    'statWorkoutsComparison',
+    comparativas.actual.entrenamientos,
+    comparativas.anterior.entrenamientos,
+    comparativas.hayHistorialAnterior,
+    comparativas.descripcion,
+    function (diferencia, aumenta) {
+      return crearTextoDiferenciaCantidad(
+        diferencia,
+        'entrenamiento',
+        'entrenamientos',
+        aumenta
+      );
+    }
+  );
+  pintarComparacion(
+    'statVolumeComparison',
+    comparativas.actual.volumen,
+    comparativas.anterior.volumen,
+    comparativas.hayHistorialAnterior,
+    comparativas.descripcion,
+    crearTextoDiferenciaVolumen
+  );
+  pintarComparacion(
+    'statTimeComparison',
+    comparativas.actual.duracion,
+    comparativas.anterior.duracion,
+    comparativas.hayHistorialAnterior,
+    comparativas.descripcion,
+    crearTextoDiferenciaDuracion
+  );
+  pintarComparacion(
+    'statStreakComparison',
+    comparativas.actual.racha,
+    comparativas.anterior.racha,
+    comparativas.hayHistorialAnterior,
+    comparativas.descripcion,
+    function (diferencia, aumenta) {
+      return crearTextoDiferenciaCantidad(
+        diferencia,
+        'semana',
+        'semanas',
+        aumenta
+      );
+    }
+  );
+
+  pintarSparkline('statWorkoutsSparkline', series.entrenamientos, animar);
+  pintarSparkline('statVolumeSparkline', series.volumen, animar);
+  pintarSparkline('statTimeSparkline', series.duracion, animar);
+  pintarSparkline('statStreakSparkline', series.racha, animar);
+}
+
 function crearPuntosDeVolumen(sesiones) {
   return sesiones.map(function (sesion) {
     const metricasSesion = calcularMetricasSesion(sesion);
@@ -43,10 +231,12 @@ function crearPuntosDeVolumen(sesiones) {
       fecha: sesion.inicio,
       valor: metricasSesion.volumenLibras
     };
+  }).filter(function (punto) {
+    return punto.valor > 0;
   });
 }
 
-function animarEntradaTarjetasResumen() {
+function animarEntradaTarjetasResumen(animar) {
   const rejillaTarjetas = obtenerElemento('statGrid');
   const tarjetas = rejillaTarjetas.querySelectorAll('.stat-card');
 
@@ -54,10 +244,14 @@ function animarEntradaTarjetasResumen() {
     tarjeta.classList.remove('is-entering');
   });
 
+  if (!animar) {
+    return;
+  }
+
   rejillaTarjetas.getBoundingClientRect();
 
   tarjetas.forEach(function (tarjeta, indiceTarjeta) {
-    tarjeta.style.setProperty('--stagger-delay', indiceTarjeta * 70 + 'ms');
+    tarjeta.style.setProperty('--stagger-delay', indiceTarjeta * 40 + 'ms');
     tarjeta.classList.add('is-entering');
   });
 }
@@ -68,9 +262,12 @@ function pintarTarjetasResumen(
   volumenTotal,
   duracionTotal,
   sesionesPorSemana,
-  informacionRacha
+  informacionRacha,
+  configuracion
 ) {
-  animarConteo(obtenerElemento('statWorkouts'), sesiones.length);
+  animarConteo(obtenerElemento('statWorkouts'), sesiones.length, {
+    animar: configuracion.animarConteos
+  });
 
   if (sesiones.length > 0) {
     obtenerElemento('statFrequency').textContent = formatoNumero.format(sesionesPorSemana)
@@ -80,6 +277,7 @@ function pintarTarjetasResumen(
   }
 
   animarConteo(obtenerElemento('statVolume'), volumenTotal, {
+    animar: configuracion.animarConteos,
     sufijo: ' lb',
     formatear: function (valor) {
       return formatoNumeroCompacto.format(valor);
@@ -98,7 +296,10 @@ function pintarTarjetasResumen(
     obtenerElemento('statTimeSub').textContent = 'Duración registrada';
   }
 
-  animarConteo(obtenerElemento('statStreak'), informacionRacha.mejorRacha, { sufijo: ' sem' });
+  animarConteo(obtenerElemento('statStreak'), informacionRacha.mejorRacha, {
+    animar: configuracion.animarConteos,
+    sufijo: ' sem'
+  });
 
   if (informacionRacha.mejorRacha === 1) {
     obtenerElemento('statStreakSub').textContent = 'Semana activa';
@@ -106,7 +307,9 @@ function pintarTarjetasResumen(
     obtenerElemento('statStreakSub').textContent = 'Semanas consecutivas';
   }
 
-  animarEntradaTarjetasResumen();
+  pintarComparativasYSeries(sesiones, configuracion.animarCambios);
+
+  animarEntradaTarjetasResumen(configuracion.animarEntrada);
 }
 
 function pintarRangoDeDatos(primeraFecha, ultimaFecha) {
@@ -120,123 +323,188 @@ function pintarRangoDeDatos(primeraFecha, ultimaFecha) {
     + formatoFechaCorta.format(ultimaFecha);
 }
 
-function pintarGraficaDeVolumen(sesiones) {
+function pintarGraficaDeVolumen(sesiones, animar) {
+  const sesionesSinVolumen = sesiones.filter(function (sesion) {
+    return calcularMetricasSesion(sesion).volumenLibras <= 0;
+  }).length;
+  const nota = obtenerElemento('volumeChartNote');
+
+  nota.hidden = sesionesSinVolumen === 0;
+  nota.textContent = sesionesSinVolumen === 1
+    ? '1 sesión sin carga no graficada'
+    : sesionesSinVolumen + ' sesiones sin carga no graficadas';
+
   pintarGraficaLinea(
     obtenerElemento('volumeChart'),
     crearPuntosDeVolumen(sesiones),
     {
+      animar: animar,
+      tipo: 'bar',
       sufijoValor: ' lb',
-      mensajeVacio: 'No hay volumen con peso en este periodo.'
+      mensajeVacio: 'No hay sesiones con volumen de peso en este periodo.'
     }
   );
 }
 
-function crearBarrasDeSemanas(semanas, cantidadesPorSemana) {
+function crearDescripcionSemana(semana) {
+  const rango = formatoFechaCorta.format(semana.inicio)
+    + ' al '
+    + formatoFechaCorta.format(sumarDias(semana.inicio, 6));
+
+  if (semana.estado === 'sin-datos') {
+    return rango + ': sin datos disponibles';
+  }
+
+  if (semana.estado === 'sin-entrenamiento') {
+    return rango + ': sin entrenamientos';
+  }
+
+  const unidad = semana.cantidadSesiones === 1 ? 'sesión' : 'sesiones';
+  return rango + ': ' + semana.cantidadSesiones + ' ' + unidad;
+}
+
+function crearBarrasDeSemanas(semanas) {
   const barrasDeSemanas = document.createDocumentFragment();
 
   semanas.forEach(function (semana, indiceSemana) {
-    const cantidadSesiones = cantidadesPorSemana[indiceSemana];
+    let alturaPorcentaje = 12;
 
-    let alturaPorcentaje = 9;
-
-    if (cantidadSesiones > 0) {
-      alturaPorcentaje = Math.min(100, 25 + cantidadSesiones * 22);
+    if (semana.estado === 'sin-datos') {
+      alturaPorcentaje = 18;
+    } else if (semana.estado === 'activa') {
+      alturaPorcentaje = Math.min(100, 28 + semana.cantidadSesiones * 18);
     }
 
-    let palabraSesion = 'sesiones';
-
-    if (cantidadSesiones === 1) {
-      palabraSesion = 'sesión';
-    }
-
-    const descripcion = formatoFechaCorta.format(semana)
-      + ': '
-      + cantidadSesiones
-      + ' '
-      + palabraSesion;
+    const descripcion = crearDescripcionSemana(semana);
 
     const barraDeSemana = clonarElementoDePlantilla('weekBarTemplate');
-    barraDeSemana.classList.toggle('active', cantidadSesiones > 0);
+    barraDeSemana.classList.add(semana.estado);
+    barraDeSemana.classList.toggle('current', indiceSemana === semanas.length - 1);
     barraDeSemana.style.height = '0%';
     barraDeSemana.dataset.targetHeight = alturaPorcentaje + '%';
     barraDeSemana.dataset.label = descripcion;
+    barraDeSemana.setAttribute('aria-label', descripcion);
     barrasDeSemanas.appendChild(barraDeSemana);
   });
 
   return barrasDeSemanas;
 }
 
-function pintarMensajeDeConstancia(cantidadesPorSemana) {
-  const ultimasCuatroSemanas = cantidadesPorSemana.slice(-4);
-  let entrenamientosRecientes = 0;
+function pintarComparacionConstancia(comparacion) {
+  const elemento = obtenerElemento('consistencyInsight');
+  elemento.classList.remove('positive', 'negative', 'neutral');
 
-  ultimasCuatroSemanas.forEach(function (cantidadSesiones) {
-    entrenamientosRecientes += cantidadSesiones;
-  });
-
-  if (entrenamientosRecientes === 0) {
-    obtenerElemento('consistencyInsight').textContent =
-      'Cada entrenamiento suma. Tu próxima sesión enciende una nueva semana.';
+  if (!comparacion.disponible) {
+    elemento.classList.add('neutral');
+    elemento.textContent = 'La comparación aparecerá al completar 8 semanas con datos.';
     return;
   }
 
-  let palabraEntrenamiento = 'entrenamientos';
+  const diferencia = comparacion.diferencia;
 
-  if (entrenamientosRecientes === 1) {
-    palabraEntrenamiento = 'entrenamiento';
+  if (diferencia === 0) {
+    const unidad = comparacion.actual === 1 ? 'entrenamiento' : 'entrenamientos';
+    elemento.classList.add('neutral');
+    elemento.textContent = '→ Sin cambio · '
+      + comparacion.actual
+      + ' '
+      + unidad
+      + ' en cada bloque de 4 semanas.';
+    return;
   }
 
-  obtenerElemento('consistencyInsight').textContent = 'Completaste '
-    + entrenamientosRecientes
+  const aumenta = diferencia > 0;
+  const cantidadAbsoluta = Math.abs(diferencia);
+  const unidad = cantidadAbsoluta === 1 ? 'entrenamiento' : 'entrenamientos';
+  let indicador = aumenta ? '↑ Nuevo ritmo' : '↓ -100%';
+
+  if (comparacion.anterior > 0) {
+    const porcentaje = Math.round(cantidadAbsoluta / comparacion.anterior * 100);
+    indicador = (aumenta ? '↑ +' : '↓ -') + porcentaje + '%';
+  }
+
+  elemento.classList.add(aumenta ? 'positive' : 'negative');
+  elemento.textContent = indicador
+    + ' · '
+    + cantidadAbsoluta
     + ' '
-    + palabraEntrenamiento
-    + ' en las últimas 4 semanas registradas.';
+    + unidad
+    + ' '
+    + (aumenta ? 'más' : 'menos')
+    + ' que las 4 semanas anteriores.';
 }
 
-function pintarConstancia() {
-  const semanaMasReciente = obtenerInicioDeSemana(estadoAplicacion.fechaMasReciente);
-  const semanas = [];
+function pintarMetaSemanal(resumen, animar) {
+  const cantidad = resumen.sesionesSemanaActual;
+  const meta = resumen.metaSesiones;
+  const faltantes = Math.max(0, meta - cantidad);
 
-  for (
-    let indiceSemana = 0;
-    indiceSemana < CANTIDAD_SEMANAS_CONSTANCIA;
-    indiceSemana += 1
-  ) {
-    const semanasDesdeElFinal = indiceSemana - CANTIDAD_SEMANAS_CONSTANCIA + 1;
-    semanas.push(sumarDias(semanaMasReciente, semanasDesdeElFinal * 7));
+  obtenerElemento('weeklyGoalValue').textContent = cantidad
+    + ' de '
+    + meta
+    + ' sesiones';
+  obtenerElemento('weeklyGoalCopy').textContent = faltantes === 0
+    ? 'Meta alcanzada en la última semana registrada'
+    : 'Faltan ' + faltantes + ' para la meta de la última semana registrada';
+
+  const pista = obtenerElemento('weeklyGoalTrack');
+  pista.setAttribute('aria-valuenow', String(Math.min(cantidad, meta)));
+  pista.setAttribute(
+    'aria-valuetext',
+    cantidad + ' de ' + meta + ' sesiones completadas'
+  );
+  const relleno = obtenerElemento('weeklyGoalFill');
+  if (animar) {
+    relleno.style.width = '0%';
+    relleno.getBoundingClientRect();
+
+    requestAnimationFrame(function () {
+      relleno.style.width = resumen.progresoMeta + '%';
+    });
+  } else {
+    relleno.style.width = resumen.progresoMeta + '%';
   }
+}
 
-  const cantidadesPorSemana = semanas.map(function (semana) {
-    return estadoAplicacion.sesiones.filter(function (sesion) {
-      const inicioSemanaSesion = obtenerInicioDeSemana(sesion.inicio);
-      return inicioSemanaSesion.getTime() === semana.getTime();
-    }).length;
-  });
-
-  const semanasActivas = cantidadesPorSemana.filter(function (cantidadSesiones) {
-    return cantidadSesiones > 0;
-  }).length;
-
-  const porcentajeActivo = Math.round(
-    semanasActivas / CANTIDAD_SEMANAS_CONSTANCIA * 100
+function pintarConstancia(animar) {
+  const resumen = crearResumenConstancia(
+    estadoAplicacion.sesiones,
+    estadoAplicacion.fechaMasReciente,
+    12
   );
 
-  obtenerElemento('consistencyValue').textContent = porcentajeActivo + '%';
-  obtenerElemento('consistencyCopy').textContent = 'de semanas activas';
+  obtenerElemento('consistencyValue').textContent = resumen.porcentajeActivo + '%';
+
+  if (resumen.semanasConDatos === 0) {
+    obtenerElemento('consistencyCopy').textContent = 'Sin semanas registradas';
+  } else {
+    obtenerElemento('consistencyCopy').textContent = resumen.semanasActivas
+      + ' de '
+      + resumen.semanasConDatos
+      + ' semanas con datos';
+  }
+
+  pintarMetaSemanal(resumen, animar);
   const contenedorBarras = obtenerElemento('weekBars');
 
   contenedorBarras.replaceChildren(
-    crearBarrasDeSemanas(semanas, cantidadesPorSemana)
+    crearBarrasDeSemanas(resumen.semanas)
   );
 
-  contenedorBarras.getBoundingClientRect();
-  requestAnimationFrame(function () {
+  if (animar) {
+    contenedorBarras.getBoundingClientRect();
+    requestAnimationFrame(function () {
+      contenedorBarras.querySelectorAll('.week-bar').forEach(function (barra) {
+        barra.style.height = barra.dataset.targetHeight;
+      });
+    });
+  } else {
     contenedorBarras.querySelectorAll('.week-bar').forEach(function (barra) {
       barra.style.height = barra.dataset.targetHeight;
     });
-  });
+  }
 
-  pintarMensajeDeConstancia(cantidadesPorSemana);
+  pintarComparacionConstancia(resumen.comparacion);
 }
 
 function obtenerMedicionesDelPeriodo() {
@@ -253,11 +521,10 @@ function obtenerMedicionesDelPeriodo() {
   });
 }
 
-function pintarCambioDePeso(puntosPeso) {
+function pintarCambioDePeso(puntosPeso, animar) {
   const etiquetaCambio = obtenerElemento('weightDelta');
   const textoAnterior = etiquetaCambio.textContent;
   let textoCambio = 'Sin registros';
-  let esCambioNegativo = false;
 
   if (puntosPeso.length === 1) {
     textoCambio = formatoNumero.format(puntosPeso[0].valor) + ' lb';
@@ -268,20 +535,20 @@ function pintarCambioDePeso(puntosPeso) {
     const signoDiferencia = diferenciaPeso > 0 ? '+' : '';
 
     textoCambio = signoDiferencia + formatoNumero.format(diferenciaPeso) + ' lb';
-    esCambioNegativo = diferenciaPeso < 0;
   }
 
   etiquetaCambio.textContent = textoCambio;
-  etiquetaCambio.classList.toggle('negative', esCambioNegativo);
+  etiquetaCambio.classList.remove('negative');
+  etiquetaCambio.classList.add('neutral');
 
-  if (textoAnterior !== textoCambio) {
+  if (animar && textoAnterior !== textoCambio) {
     etiquetaCambio.classList.remove('is-updated');
     etiquetaCambio.getBoundingClientRect();
     etiquetaCambio.classList.add('is-updated');
   }
 }
 
-function pintarGraficaPeso() {
+function pintarGraficaPeso(animarGrafica, animarCambios) {
   const medicionesDelPeriodo = obtenerMedicionesDelPeriodo();
 
   const puntosPeso = medicionesDelPeriodo
@@ -299,13 +566,14 @@ function pintarGraficaPeso() {
     obtenerElemento('weightChart'),
     puntosPeso,
     {
+      animar: animarGrafica,
       iniciarEnCero: false,
       sufijoValor: ' lb',
       mensajeVacio: 'Añade mediciones de peso en Hevy.'
     }
   );
 
-  pintarCambioDePeso(puntosPeso);
+  pintarCambioDePeso(puntosPeso, animarCambios);
 }
 
 function contarSeriesPorEjercicio(series) {
@@ -324,7 +592,7 @@ function contarSeriesPorEjercicio(series) {
   return cantidadesPorEjercicio;
 }
 
-function pintarEjerciciosPrincipales() {
+function pintarEjerciciosPrincipales(animar) {
   const cantidadesPorEjercicio = contarSeriesPorEjercicio(
     estadoAplicacion.seriesFiltradas
   );
@@ -357,7 +625,7 @@ function pintarEjerciciosPrincipales() {
     nombre.textContent = nombreEjercicio;
     nombre.title = nombreEjercicio;
     const rellenoBarra = filaEjercicio.querySelector('.bar-fill');
-    rellenoBarra.style.width = '0%';
+    rellenoBarra.style.width = animar ? '0%' : porcentajeBarra + '%';
     rellenoBarra.dataset.targetWidth = porcentajeBarra + '%';
     filaEjercicio.querySelector('[data-field="count"]').textContent = String(cantidadSeries);
     filasEjercicios.appendChild(filaEjercicio);
@@ -366,15 +634,23 @@ function pintarEjerciciosPrincipales() {
   const contenedorEjercicios = obtenerElemento('topExercises');
 
   contenedorEjercicios.replaceChildren(filasEjercicios);
-  contenedorEjercicios.getBoundingClientRect();
-  requestAnimationFrame(function () {
-    contenedorEjercicios.querySelectorAll('.bar-fill').forEach(function (barra) {
-      barra.style.width = barra.dataset.targetWidth;
+  if (animar) {
+    contenedorEjercicios.getBoundingClientRect();
+    requestAnimationFrame(function () {
+      contenedorEjercicios.querySelectorAll('.bar-fill').forEach(function (barra) {
+        barra.style.width = barra.dataset.targetWidth;
+      });
     });
-  });
+  }
 }
 
-export function pintarResumen() {
+export function pintarResumen(configuracionOriginal) {
+  const configuracion = configuracionOriginal || {
+    animarEntrada: true,
+    animarConteos: true,
+    animarGraficas: true,
+    animarCambios: true
+  };
   const sesiones = estadoAplicacion.sesionesFiltradas;
   const seriesEfectivas = estadoAplicacion.seriesFiltradas.filter(esSerieEfectiva);
   const volumenTotal = obtenerVolumenTotal(seriesEfectivas);
@@ -410,12 +686,13 @@ export function pintarResumen() {
     volumenTotal,
     duracionTotal,
     sesionesPorSemana,
-    informacionRacha
+    informacionRacha,
+    configuracion
   );
 
   pintarRangoDeDatos(primeraFecha, ultimaFecha);
-  pintarGraficaDeVolumen(sesiones);
-  pintarConstancia();
-  pintarGraficaPeso();
-  pintarEjerciciosPrincipales();
+  pintarGraficaDeVolumen(sesiones, configuracion.animarGraficas);
+  pintarConstancia(configuracion.animarCambios);
+  pintarGraficaPeso(configuracion.animarGraficas, configuracion.animarCambios);
+  pintarEjerciciosPrincipales(configuracion.animarCambios);
 }

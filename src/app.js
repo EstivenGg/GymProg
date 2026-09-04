@@ -6,6 +6,7 @@ import {
 import {
   cambiarSeccion,
   conectarEventos,
+  estabilizarPosicionInicial,
   iniciarTema
 } from './interfaz.js';
 import { obtenerElemento } from './utilidades.js';
@@ -21,6 +22,14 @@ function pintarFechaActual() {
   obtenerElemento('todayLabel').textContent = formatoFechaActual
     .format(new Date())
     .toUpperCase();
+}
+
+function finalizarCargaInicial() {
+  obtenerElemento('resumen').setAttribute('aria-busy', 'false');
+
+  requestAnimationFrame(function () {
+    document.body.classList.remove('is-loading');
+  });
 }
 
 async function descargarArchivoCSV(rutaArchivo, esObligatorio) {
@@ -60,26 +69,30 @@ async function cargarDatosPublicados() {
 
     prepararDatos(filasEntrenamiento, filasMediciones);
     aplicarFiltroPeriodo();
-    pintarTableroCompleto();
+    pintarTableroCompleto({ modo: 'inicial' });
   } catch (errorLectura) {
     console.error(errorLectura);
 
     prepararDatos([], []);
-    pintarTableroCompleto();
+    pintarTableroCompleto({ modo: 'inicial' });
     mostrarEstadoImportacion(
       'No encontré datos iniciales. Selecciona tus archivos CSV.',
       'error'
     );
     abrirModalImportacion();
+  } finally {
+    finalizarCargaInicial();
   }
 }
 
 async function iniciarAplicacion() {
+  estabilizarPosicionInicial();
   iniciarTema();
   conectarEventos();
-  cambiarSeccion(location.hash.slice(1));
+  cambiarSeccion(location.hash.slice(1), { inmediato: true });
   pintarFechaActual();
   await cargarDatosPublicados();
+  estabilizarPosicionInicial();
 }
 
 try {

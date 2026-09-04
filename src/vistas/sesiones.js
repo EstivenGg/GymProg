@@ -112,7 +112,7 @@ function crearDetalleDeSesion(sesion) {
   return detallesEjercicios;
 }
 
-function crearTarjetaDeSesion(sesion, indiceSesion) {
+function crearTarjetaDeSesion(sesion, indiceSesion, animarEntrada) {
   const metricasSesion = calcularMetricasSesion(sesion);
   const detalleSesion = crearDetalleDeSesion(sesion);
   const tarjetaSesion = clonarElementoDePlantilla('sessionCardTemplate');
@@ -145,8 +145,13 @@ function crearTarjetaDeSesion(sesion, indiceSesion) {
   tarjetaSesion.querySelector('[data-field="duration"]').textContent = metricasSesion
     .duracionMinutos + ' min';
   tarjetaSesion.querySelector('.session-detail-inner').replaceChildren(detalleSesion);
-  tarjetaSesion.style.setProperty('--stagger-delay', Math.min(indiceSesion, 10) * 45 + 'ms');
-  tarjetaSesion.classList.add('is-entering');
+  if (animarEntrada) {
+    tarjetaSesion.style.setProperty(
+      '--stagger-delay',
+      Math.min(indiceSesion, 10) * 40 + 'ms'
+    );
+    tarjetaSesion.classList.add('is-entering');
+  }
 
   return tarjetaSesion;
 }
@@ -169,7 +174,8 @@ function conectarEventosDeSesiones() {
   });
 }
 
-export function pintarSesiones() {
+export function pintarSesiones(configuracionOriginal) {
+  const configuracion = configuracionOriginal || { animarEntrada: true };
   const sesionesOrdenadas = estadoAplicacion.sesionesFiltradas
     .slice()
     .sort(compararSesionesMasRecientesPrimero);
@@ -194,7 +200,9 @@ export function pintarSesiones() {
   const tarjetasSesiones = document.createDocumentFragment();
 
   sesionesOrdenadas.forEach(function (sesion, indiceSesion) {
-    tarjetasSesiones.appendChild(crearTarjetaDeSesion(sesion, indiceSesion));
+    tarjetasSesiones.appendChild(
+      crearTarjetaDeSesion(sesion, indiceSesion, configuracion.animarEntrada)
+    );
   });
 
   obtenerElemento('sessionList').replaceChildren(tarjetasSesiones);

@@ -13,7 +13,7 @@ import {
   sumarDias
 } from '../utilidades.js';
 
-function pintarCalendarioActividad() {
+function pintarCalendarioActividad(configuracion) {
   const anioCalendario = estadoAplicacion.fechaMasReciente.getFullYear();
   const fechaInicialDelAnio = new Date(anioCalendario, 0, 1);
   const fechaLimiteDelAnio = new Date(anioCalendario + 1, 0, 1);
@@ -93,6 +93,10 @@ function pintarCalendarioActividad() {
     const esHoy = crearClaveDeFecha(fecha) === claveHoy;
 
     celdaCalendario.dataset.level = perteneceAlAnio ? String(nivelActividad) : '0';
+    celdaCalendario.classList.toggle(
+      'no-entry-animation',
+      !configuracion.animarEntrada
+    );
     celdaCalendario.classList.toggle('is-outside-year', !perteneceAlAnio);
     celdaCalendario.classList.toggle('is-today', perteneceAlAnio && esHoy);
 
@@ -281,7 +285,7 @@ function obtenerMejoresSeriesPorEjercicio() {
   return mejoresSeries;
 }
 
-function pintarTablaDeRecords() {
+function pintarTablaDeRecords(configuracion) {
   const tablaRecords = obtenerElemento('recordsTable');
   const mejoresSeries = obtenerMejoresSeriesPorEjercicio();
   const recordsOrdenados = Array.from(mejoresSeries.entries());
@@ -308,8 +312,12 @@ function pintarTablaDeRecords() {
       && crearClaveDeFecha(mejorSerie.inicio) === claveUltimaSesion;
     const filaRecord = clonarElementoDePlantilla('recordRowTemplate');
 
-    filaRecord.classList.add('record-row-enter');
-    filaRecord.style.setProperty('--row-delay', indiceRecord * 65 + 'ms');
+    if (configuracion.animarEntrada) {
+      filaRecord.classList.add('record-row-enter');
+      filaRecord.style.setProperty('--row-delay', indiceRecord * 40 + 'ms');
+    } else {
+      filaRecord.classList.add('no-entry-animation');
+    }
     filaRecord.classList.toggle('record-new', esRecordReciente);
     filaRecord.querySelector('.record-badge').hidden = !esRecordReciente;
     filaRecord.querySelector('.record-badge-best').hidden = indiceRecord !== 0;
@@ -326,8 +334,10 @@ function pintarTablaDeRecords() {
   tablaRecords.replaceChildren(filasRecords);
 }
 
-export function pintarProgreso() {
-  pintarCalendarioActividad();
+export function pintarProgreso(configuracionOriginal) {
+  const configuracion = configuracionOriginal || { animarEntrada: true };
+
+  pintarCalendarioActividad(configuracion);
   pintarPatronesDeEntrenamiento();
-  pintarTablaDeRecords();
+  pintarTablaDeRecords(configuracion);
 }

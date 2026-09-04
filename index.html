@@ -8,7 +8,7 @@
   <title>Hevy Progress — Tu entrenamiento, en perspectiva</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="is-loading">
   <div class="app-shell">
     <aside class="sidebar" aria-label="Navegación principal">
       <a class="brand" href="#resumen" aria-label="Hevy Progress, inicio">
@@ -50,8 +50,8 @@
           <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <div class="welcome">
-          <p id="todayLabel">TU PROGRESO</p>
           <h1>Hola, atleta <span aria-hidden="true">👋</span></h1>
+          <p id="todayLabel">TU PROGRESO</p>
         </div>
         <div class="top-actions">
           <div class="period-control custom-select">
@@ -79,52 +79,62 @@
         </div>
       </header>
 
-      <section class="view active" id="resumen">
+      <section class="view active" id="resumen" aria-busy="true">
         <div class="section-heading">
-          <div><span class="eyebrow">PANORAMA GENERAL</span><h2>Tu entrenamiento de un vistazo</h2></div>
+          <div><h2>Tu entrenamiento de un vistazo</h2></div>
           <div class="data-range" id="dataRange">Esperando datos</div>
         </div>
 
         <div class="stat-grid" id="statGrid">
           <article class="stat-card orange-stat">
             <div class="stat-icon orange"><svg viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 8h16v12H4V8Zm4 4h3m2 0h3m-8 4h3"/></svg></div>
-            <div class="stat-copy"><span class="stat-label">ENTRENAMIENTOS</span><strong id="statWorkouts">—</strong><small id="statFrequency">Sin datos</small><div class="stat-comparison neutral" id="statWorkoutsComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <div class="stat-copy"><span class="stat-label">ENTRENAMIENTOS</span><strong id="statWorkouts">—</strong><small id="statFrequency">Sin datos</small></div>
             <svg class="stat-sparkline" id="statWorkoutsSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+            <div class="stat-comparison neutral" id="statWorkoutsComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div>
           </article>
           <article class="stat-card blue-stat">
             <div class="stat-icon blue"><svg viewBox="0 0 24 24"><path d="M6 9v6m12-6v6M3 10v4m18-4v4M6 12h12"/></svg></div>
-            <div class="stat-copy"><span class="stat-label">VOLUMEN TOTAL</span><strong id="statVolume">—</strong><small id="statVolumeSub">Series efectivas</small><div class="stat-comparison neutral" id="statVolumeComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <div class="stat-copy"><span class="stat-label">VOLUMEN TOTAL</span><strong id="statVolume">—</strong><small id="statVolumeSub">Series efectivas</small></div>
             <svg class="stat-sparkline" id="statVolumeSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+            <div class="stat-comparison neutral" id="statVolumeComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div>
           </article>
           <article class="stat-card violet-stat">
             <div class="stat-icon violet"><svg viewBox="0 0 24 24"><path d="M12 21s7-4.4 7-11a4 4 0 0 0-7-2.6A4 4 0 0 0 5 10c0 6.6 7 11 7 11Z"/></svg></div>
-            <div class="stat-copy"><span class="stat-label">TIEMPO ENTRENANDO</span><strong id="statTime">—</strong><small id="statTimeSub">Duración registrada</small><div class="stat-comparison neutral" id="statTimeComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <div class="stat-copy"><span class="stat-label">TIEMPO ENTRENANDO</span><strong id="statTime">—</strong><small id="statTimeSub">Duración registrada</small></div>
             <svg class="stat-sparkline" id="statTimeSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+            <div class="stat-comparison neutral" id="statTimeComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div>
           </article>
           <article class="stat-card green-stat">
             <div class="stat-icon green"><svg viewBox="0 0 24 24"><path d="m4 17 5-5 4 3 7-8M15 7h5v5"/></svg></div>
-            <div class="stat-copy"><span class="stat-label">MEJOR RACHA</span><strong id="statStreak">—</strong><small id="statStreakSub">Semanas consecutivas</small><div class="stat-comparison neutral" id="statStreakComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div></div>
+            <div class="stat-copy"><span class="stat-label">MEJOR RACHA</span><strong id="statStreak">—</strong><small id="statStreakSub">Semanas consecutivas</small></div>
             <svg class="stat-sparkline" id="statStreakSparkline" viewBox="0 0 72 36" aria-hidden="true"><path class="sparkline-area"/><path class="sparkline-line"/><circle class="sparkline-point" r="2.4"/></svg>
+            <div class="stat-comparison neutral" id="statStreakComparison"><span class="trend-badge"><svg viewBox="0 0 20 20"><path d="m3 14 5-5 3 3 6-6m-4 0h4v4"/></svg><span data-field="trend">—</span></span><span data-field="comparison">Sin historial anterior</span></div>
           </article>
         </div>
 
         <div class="dashboard-grid">
           <article class="panel span-8">
-            <div class="panel-heading"><div><span class="eyebrow">CARGA DE TRABAJO</span><h3>Volumen por sesión</h3></div><div class="legend"><i></i> Volumen (lb)</div></div>
+            <div class="panel-heading"><div><span class="eyebrow">CARGA DE TRABAJO</span><h3>Volumen por sesión</h3></div><div class="panel-meta"><div class="legend bar-legend"><i></i> Volumen (lb)</div><span class="panel-note" id="volumeChartNote" hidden></span></div></div>
             <div class="chart chart-large" id="volumeChart"><div class="empty-state">Importa tus datos para ver la evolución.</div></div>
           </article>
           <article class="panel span-4 accent-panel">
             <div class="panel-heading"><div><span class="eyebrow">CONSTANCIA</span><h3>Últimas 12 semanas</h3></div></div>
-            <div class="consistency-total"><strong id="consistencyValue">0%</strong><span id="consistencyCopy">de semanas activas</span></div>
+            <div class="consistency-total"><strong id="consistencyValue">0%</strong><span id="consistencyCopy">Sin semanas registradas</span></div>
+            <div class="weekly-goal">
+              <div class="weekly-goal-heading"><span>Meta semanal</span><strong id="weeklyGoalValue">0 de 4 sesiones</strong></div>
+              <div class="weekly-goal-track" id="weeklyGoalTrack" role="progressbar" aria-label="Progreso de la meta semanal" aria-valuemin="0" aria-valuemax="4" aria-valuenow="0"><i id="weeklyGoalFill"></i></div>
+              <span class="weekly-goal-copy" id="weeklyGoalCopy">Última semana registrada</span>
+            </div>
             <div class="week-bars" id="weekBars"></div>
-            <p class="insight" id="consistencyInsight">Cada entrenamiento suma. Importa tu historial para empezar.</p>
+            <div class="week-legend" aria-label="Leyenda de actividad semanal"><span><i class="active"></i>Con entrenamiento</span><span><i class="inactive"></i>Sin entrenamiento</span><span><i class="unavailable"></i>Sin datos</span></div>
+            <p class="insight consistency-comparison neutral" id="consistencyInsight">La comparación aparecerá con 8 semanas de datos.</p>
           </article>
           <article class="panel span-5">
-            <div class="panel-heading"><div><span class="eyebrow">COMPOSICIÓN</span><h3>Peso corporal</h3></div><span class="metric-chip" id="weightDelta">Sin registros</span></div>
+            <div class="panel-heading"><div><h3>Peso corporal</h3></div><span class="metric-chip neutral" id="weightDelta">Sin registros</span></div>
             <div class="chart chart-medium" id="weightChart"><div class="empty-state">Añade mediciones de peso en Hevy.</div></div>
           </article>
           <article class="panel span-7">
-            <div class="panel-heading"><div><span class="eyebrow">DISTRIBUCIÓN</span><h3>Ejercicios más trabajados</h3></div><span class="panel-note">Por series efectivas</span></div>
+            <div class="panel-heading"><div><h3>Ejercicios más trabajados</h3></div><span class="panel-note">Por series efectivas</span></div>
             <div class="exercise-bars" id="topExercises"><div class="empty-state">Aún no hay ejercicios.</div></div>
           </article>
         </div>
@@ -134,7 +144,7 @@
         <div class="section-heading"><div><span class="eyebrow">TENDENCIAS</span><h2>Progreso y constancia</h2></div></div>
         <div class="dashboard-grid">
           <article class="panel span-8">
-            <div class="panel-heading"><div><span class="eyebrow">ACTIVIDAD</span><h3>Calendario de entrenamiento</h3></div><span class="panel-note" id="heatmapLabel"></span></div>
+            <div class="panel-heading"><div><h3>Calendario de entrenamiento</h3></div><span class="panel-note" id="heatmapLabel"></span></div>
             <div class="heatmap-wrap" id="heatmap">
               <div class="heatmap-body">
                 <div class="heatmap-months" aria-hidden="true"></div>
@@ -148,12 +158,12 @@
             </div>
           </article>
           <article class="panel span-4">
-            <div class="panel-heading"><div><span class="eyebrow">HÁBITO</span><h3>Tu patrón</h3></div></div>
+            <div class="panel-heading"><div><h3>Tu patrón</h3></div></div>
             <div class="pattern-list" id="patternList"></div>
             <p class="insight" id="patternInsight"></p>
           </article>
           <article class="panel span-12">
-            <div class="panel-heading"><div><span class="eyebrow">MEJORES MARCAS</span><h3>Récords estimados</h3></div><span class="panel-note">1RM estimado con fórmula de Epley</span></div>
+            <div class="panel-heading"><div><h3>Récords estimados</h3></div><span class="panel-note">1RM estimado con fórmula de Epley</span></div>
             <div class="table-wrap"><table><thead><tr><th>Ejercicio</th><th>Mejor serie</th><th>1RM estimado</th><th>Fecha</th></tr></thead><tbody id="recordsTable"></tbody></table></div>
           </article>
         </div>
@@ -182,7 +192,7 @@
           <div class="panel-heading">
             <div class="performance-heading">
               <span class="performance-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m13 2-9 12h6l-1 8 9-12h-6l1-8Z"/></svg></span>
-              <div><span class="eyebrow">RENDIMIENTO</span><h3 id="exerciseChartTitle">Evolución de fuerza</h3></div>
+              <div><h3 id="exerciseChartTitle">Evolución de fuerza</h3></div>
             </div>
             <div class="performance-meta">
               <div class="legend"><i></i> 1RM estimado</div>
@@ -229,7 +239,7 @@
   </template>
 
   <template id="weekBarTemplate">
-    <i class="week-bar"></i>
+    <i class="week-bar" role="img" tabindex="0"></i>
   </template>
 
   <template id="topExerciseTemplate">
