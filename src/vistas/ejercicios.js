@@ -57,8 +57,7 @@ function obtenerNombresDeEjercicios() {
   return nombresOrdenados;
 }
 
-// Abrir en el primero por orden alfabetico deja la pagina en el ejercicio que
-// menos dice; abrimos en el que mas has entrenado.
+// Por defecto se abre el ejercicio más entrenado del periodo.
 function obtenerEjercicioMasEntrenado(nombresEjercicios) {
   const cantidadesPorEjercicio = new Map();
 
@@ -133,36 +132,35 @@ function calcularTendencia(puntos) {
 }
 
 function pintarTendencia(puntos, metrica) {
-  const chip = obtenerElemento('exerciseTrend');
+  const indicadorTendencia = obtenerElemento('exerciseTrend');
   const diferencia = calcularTendencia(puntos);
 
-  chip.classList.remove('negative', 'neutral');
+  indicadorTendencia.classList.remove('negative', 'neutral');
 
   if (diferencia === null) {
-    chip.textContent = 'Sin comparación';
-    chip.classList.add('neutral');
+    indicadorTendencia.textContent = 'Sin comparación';
+    indicadorTendencia.classList.add('neutral');
     return;
   }
 
   const diferenciaRedondeada = Number(formatoNumero.format(diferencia).replace(',', '.'));
 
-  // Un cambio de cero no es una mejora: no debe pintarse como tal
+  // Un cambio nulo se muestra como neutral.
   if (diferenciaRedondeada === 0) {
-    chip.textContent = 'Sin cambio vs. hace 1 mes';
-    chip.classList.add('neutral');
+    indicadorTendencia.textContent = 'Sin cambio vs. hace 1 mes';
+    indicadorTendencia.classList.add('neutral');
     return;
   }
 
   const signoDiferencia = diferencia > 0 ? '+' : '−';
 
-  chip.textContent = signoDiferencia
+  indicadorTendencia.textContent = signoDiferencia
     + formatearValorDeMetrica(Math.abs(diferencia), metrica)
     + ' vs. hace 1 mes';
-  chip.classList.toggle('negative', esRetroceso(diferencia, metrica));
+  indicadorTendencia.classList.toggle('negative', esRetroceso(diferencia, metrica));
 }
 
-// En casi todo, subir es mejorar. En ritmo es al revés, y pintarlo igual que el
-// resto convertiría una carrera más rápida en una mala noticia.
+// En una métrica de ritmo, un valor menor representa una mejora.
 function esRetroceso(diferencia, metrica) {
   return metrica.menorEsMejor ? diferencia > 0 : diferencia < 0;
 }
@@ -187,30 +185,29 @@ function crearTextoDeMejorSerie(mejorSerie) {
   return 'Serie registrada';
 }
 
-function crearContextoDeSesion(fila, metrica) {
-  const valorDelDia = convertirValorDeMetrica(fila.valorBruto, metrica);
-  const palabraSerie = fila.cantidadSeries === 1 ? 'serie' : 'series';
+function crearContextoDeSesion(resumenSesion, metrica) {
+  const valorDelDia = convertirValorDeMetrica(resumenSesion.valorBruto, metrica);
+  const palabraSerie = resumenSesion.cantidadSeries === 1 ? 'serie' : 'series';
 
   return metrica.etiqueta
     + ' '
     + formatearValorDeMetrica(valorDelDia, metrica)
     + ' · '
-    + fila.cantidadSeries
+    + resumenSesion.cantidadSeries
     + ' '
     + palabraSerie
     + ' · '
-    + fila.tituloSesion;
+    + resumenSesion.tituloSesion;
 }
 
-// El porcentaje compara el valor de la métrica que está pintando la línea, así
-// que el número de la fila y el salto del gráfico son la misma cosa.
-function pintarCambioDeSesion(elementoFila, fila, metrica) {
+// El porcentaje compara la métrica visible con la sesión anterior.
+function pintarCambioDeSesion(elementoFila, resumenSesion, metrica) {
   const insignia = elementoFila.querySelector('[data-field="change"]');
   const valorCambio = elementoFila.querySelector('[data-field="change-value"]');
 
   insignia.classList.remove('increase', 'decrease', 'neutral');
 
-  if (fila.porcentaje === null) {
+  if (resumenSesion.porcentaje === null) {
     insignia.classList.add('neutral');
     valorCambio.textContent = '—';
     insignia.title = 'Primera sesión registrada en el periodo';
@@ -218,7 +215,7 @@ function pintarCambioDeSesion(elementoFila, fila, metrica) {
   }
 
   const porcentajeRedondeado = Number(
-    formatoNumero.format(fila.porcentaje).replace(',', '.')
+    formatoNumero.format(resumenSesion.porcentaje).replace(',', '.')
   );
 
   if (porcentajeRedondeado === 0) {
@@ -226,89 +223,97 @@ function pintarCambioDeSesion(elementoFila, fila, metrica) {
     valorCambio.textContent = '=';
   } else {
     insignia.classList.add(
-      esRetroceso(fila.porcentaje, metrica) ? 'decrease' : 'increase'
+      esRetroceso(resumenSesion.porcentaje, metrica) ? 'decrease' : 'increase'
     );
-    valorCambio.textContent = (fila.porcentaje > 0 ? '+' : '−')
-      + formatoNumero.format(Math.abs(fila.porcentaje))
+    valorCambio.textContent = (resumenSesion.porcentaje > 0 ? '+' : '−')
+      + formatoNumero.format(Math.abs(resumenSesion.porcentaje))
       + ' %';
   }
 
   insignia.title = metrica.nombre
     + ': '
-    + formatearValorDeMetrica(convertirValorDeMetrica(fila.valorBruto, metrica), metrica)
+    + formatearValorDeMetrica(
+      convertirValorDeMetrica(resumenSesion.valorBruto, metrica),
+      metrica
+    )
     + ' · sesión anterior: '
-    + formatearValorDeMetrica(convertirValorDeMetrica(fila.valorAnterior, metrica), metrica);
+    + formatearValorDeMetrica(
+      convertirValorDeMetrica(resumenSesion.valorAnterior, metrica),
+      metrica
+    );
 }
 
-function crearFilaDeSesionReciente(fila, metrica) {
+function crearFilaDeSesionReciente(resumenSesion, metrica) {
   const elementoFila = clonarElementoDePlantilla('recentSessionTemplate');
   const esfuerzo = elementoFila.querySelector('[data-field="effort"]');
 
-  elementoFila.dataset.sessionKey = fila.claveSesion;
+  elementoFila.dataset.sessionKey = resumenSesion.claveSesion;
   elementoFila.querySelector('[data-field="date"]').textContent =
-    formatoFechaCorta.format(fila.fecha);
+    formatoFechaCorta.format(resumenSesion.fecha);
   elementoFila.querySelector('[data-field="set"]').textContent =
-    crearTextoDeMejorSerie(fila.mejorSerie);
+    crearTextoDeMejorSerie(resumenSesion.mejorSerie);
   elementoFila.querySelector('[data-field="context"]').textContent =
-    crearContextoDeSesion(fila, metrica);
+    crearContextoDeSesion(resumenSesion, metrica);
 
-  if (!fila.esfuerzo) {
+  if (!resumenSesion.esfuerzo) {
     esfuerzo.textContent = 'Sin RPE';
     esfuerzo.classList.add('is-missing');
   } else {
-    esfuerzo.textContent = 'RPE ' + formatoNumero.format(fila.esfuerzo.promedio);
+    esfuerzo.textContent = 'RPE ' + formatoNumero.format(resumenSesion.esfuerzo.promedio);
     esfuerzo.title = 'RPE medio de '
-      + fila.esfuerzo.seriesConEsfuerzo
+      + resumenSesion.esfuerzo.seriesConEsfuerzo
       + ' de '
-      + fila.esfuerzo.seriesTotales
+      + resumenSesion.esfuerzo.seriesTotales
       + ' series · máximo '
-      + formatoNumero.format(fila.esfuerzo.maximo);
+      + formatoNumero.format(resumenSesion.esfuerzo.maximo);
 
-    if (fila.esfuerzo.seriesConEsfuerzo < fila.esfuerzo.seriesTotales) {
+    if (resumenSesion.esfuerzo.seriesConEsfuerzo < resumenSesion.esfuerzo.seriesTotales) {
       esfuerzo.textContent += ' · '
-        + fila.esfuerzo.seriesConEsfuerzo
+        + resumenSesion.esfuerzo.seriesConEsfuerzo
         + '/'
-        + fila.esfuerzo.seriesTotales;
+        + resumenSesion.esfuerzo.seriesTotales;
     }
   }
 
-  pintarCambioDeSesion(elementoFila, fila, metrica);
+  pintarCambioDeSesion(elementoFila, resumenSesion, metrica);
 
   return elementoFila;
 }
 
 function pintarUltimasSesiones(seriesEjercicio, metrica) {
-  const panel = obtenerElemento('exerciseRecentPanel');
-  const lista = obtenerElemento('exerciseRecentList');
-  const nota = obtenerElemento('exerciseRecentNote');
+  const panelSesionesRecientes = obtenerElemento('exerciseRecentPanel');
+  const listaSesionesRecientes = obtenerElemento('exerciseRecentList');
+  const notaComparacion = obtenerElemento('exerciseRecentNote');
 
   if (!metrica) {
-    panel.hidden = true;
-    lista.replaceChildren();
+    panelSesionesRecientes.hidden = true;
+    listaSesionesRecientes.replaceChildren();
     return;
   }
 
-  const filas = crearUltimasSesionesDelEjercicio(seriesEjercicio, metrica);
+  const resumenesDeSesiones = crearUltimasSesionesDelEjercicio(seriesEjercicio, metrica);
 
-  panel.hidden = false;
+  panelSesionesRecientes.hidden = false;
 
-  if (filas.length === 0) {
-    nota.textContent = '';
-    lista.replaceChildren(
+  if (resumenesDeSesiones.length === 0) {
+    notaComparacion.textContent = '';
+    listaSesionesRecientes.replaceChildren(
       crearElemento('p', 'recent-sessions-empty', 'No hay sesiones de este ejercicio en el periodo.')
     );
     return;
   }
 
-  nota.textContent = 'Comparadas con la sesión anterior · ' + metrica.nombre;
+  notaComparacion.textContent = 'Comparadas con la sesión anterior · ' + metrica.nombre;
 
-  const elementos = document.createDocumentFragment();
+  const filasSesionesRecientes = document.createDocumentFragment();
 
-  filas.forEach(function (fila) {
-    elementos.appendChild(crearFilaDeSesionReciente(fila, metrica));
+  resumenesDeSesiones.forEach(function (resumenSesion) {
+    filasSesionesRecientes.appendChild(
+      crearFilaDeSesionReciente(resumenSesion, metrica)
+    );
   });
 
-  lista.replaceChildren(elementos);
+  listaSesionesRecientes.replaceChildren(filasSesionesRecientes);
 }
 
 function crearTarjetasDelEjercicio(series) {
@@ -547,8 +552,7 @@ export function pintarDetalleEjercicio(configuracionOriginal) {
   const seriesEjercicio = obtenerSeriesDelEjercicio(nombreEjercicio);
   const metricasDisponibles = obtenerMetricasDisponibles(seriesEjercicio);
 
-  // Cada ejercicio ofrece lo suyo: si la metrica activa no aplica, cae en la
-  // primera que si (1RM para una barra, reps para dominadas, km para la cinta).
+  // Si la métrica elegida no aplica, se usa la primera disponible.
   const metricaAplicable = metricasDisponibles.some(function (metrica) {
     return metrica.clave === metricaSeleccionada;
   });
@@ -590,8 +594,7 @@ export function pintarDetalleEjercicio(configuracionOriginal) {
   pintarUltimasSesiones(seriesEjercicio, metrica);
 }
 
-// Un punto de la línea es un día del ejercicio, y ese día pertenece a un
-// entrenamiento concreto: pulsarlo abre justo ese.
+// Cada punto abre la sesión de entrenamiento correspondiente.
 function marcarPuntoSeleccionable(punto) {
   const primeraSerie = punto.series[0];
 
@@ -614,8 +617,7 @@ export function conectarEventosDeEjercicios() {
     .addEventListener('click', manejarClicEnUltimasSesiones);
 }
 
-// Punto de entrada desde la tabla de récords: selecciona el ejercicio, lo pinta
-// y lleva la vista hasta él.
+// Abre un ejercicio seleccionado desde la tabla de récords.
 export function abrirEjercicio(nombreEjercicio) {
   const selectorEjercicios = obtenerElemento('exerciseSelect');
   const existeElEjercicio = Array.from(selectorEjercicios.options).some(function (opcion) {

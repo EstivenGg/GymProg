@@ -2204,7 +2204,7 @@ body.is-loading #resumen .panel::before {
   font-size: 13px;
 }
 
-/* Aqui la direccion si tiene un lado bueno: mas 1RM es mejor, sin ambiguedad */
+/* Los colores indican la dirección del cambio. */
 .mover-item .trend-badge.increase,
 #recordsTable .trend-badge.increase {
   background: color-mix(in srgb, var(--green) 15%, transparent);

@@ -27,7 +27,7 @@ function obtenerMejor1RMPorEjercicio(sesiones) {
   return mejoresPorEjercicio;
 }
 
-function crearCambio(mejorActual, mejorAnterior) {
+function crearCambio(mejorActual, mejorAnterior, umbralCambio = UMBRAL_DE_CAMBIO) {
   if (mejorAnterior === undefined) {
     return { estado: 'nuevo', diferencia: 0, porcentaje: 0 };
   }
@@ -35,7 +35,7 @@ function crearCambio(mejorActual, mejorAnterior) {
   const diferencia = mejorActual - mejorAnterior;
   const porcentaje = diferencia / mejorAnterior;
 
-  if (Math.abs(porcentaje) < UMBRAL_DE_CAMBIO) {
+  if (Math.abs(porcentaje) < umbralCambio) {
     return { estado: 'mantiene', diferencia: diferencia, porcentaje: porcentaje };
   }
 
@@ -50,6 +50,82 @@ function contarPorEstado(ejercicios, estadoBuscado) {
   return ejercicios.filter(function (ejercicio) {
     return ejercicio.estado === estadoBuscado;
   }).length;
+}
+
+function resumirComparacion(ejercicios, particion) {
+  ejercicios.sort(function (primerEjercicio, segundoEjercicio) {
+    return segundoEjercicio.porcentaje - primerEjercicio.porcentaje;
+  });
+
+  return {
+    ejercicios: ejercicios,
+    subieron: contarPorEstado(ejercicios, 'subio'),
+    mantienen: contarPorEstado(ejercicios, 'mantiene'),
+    bajaron: contarPorEstado(ejercicios, 'bajo'),
+    nuevos: contarPorEstado(ejercicios, 'nuevo'),
+    hayHistorialAnterior: particion.hayHistorialAnterior,
+    comparadoCon: particion.comparadoCon
+  };
+}
+
+function obtenerSeriesDeMayorCarga(sesiones) {
+  const seriesPorEjercicio = new Map();
+
+  sesiones.forEach(function (sesion) {
+    calcularMetricasSesion(sesion).seriesEfectivas.forEach(function (serie) {
+      if (!Number.isFinite(serie.pesoLibras) || serie.pesoLibras <= 0
+        || !Number.isFinite(serie.repeticiones) || serie.repeticiones <= 0) {
+        return;
+      }
+
+      const serieAnterior = seriesPorEjercicio.get(serie.ejercicio);
+      const tieneMasCarga = !serieAnterior || serie.pesoLibras > serieAnterior.pesoLibras;
+      const tieneMismaCarga = serieAnterior && serie.pesoLibras === serieAnterior.pesoLibras;
+      const tieneMasRepeticiones = tieneMismaCarga
+        && serie.repeticiones > serieAnterior.repeticiones;
+      const esMismaMarcaMasReciente = tieneMismaCarga
+        && serie.repeticiones === serieAnterior.repeticiones
+        && sesion.inicio > serieAnterior.fecha;
+
+      if (tieneMasCarga || tieneMasRepeticiones || esMismaMarcaMasReciente) {
+        seriesPorEjercicio.set(serie.ejercicio, {
+          pesoLibras: serie.pesoLibras,
+          repeticiones: serie.repeticiones,
+          fecha: sesion.inicio
+        });
+      }
+    });
+  });
+
+  return seriesPorEjercicio;
+}
+
+export function crearComparacionCargas(todasLasSesiones, fechaMasReciente, periodoSeleccionado) {
+  const particion = crearParticionDePeriodo(
+    todasLasSesiones, fechaMasReciente, periodoSeleccionado
+  );
+  const seriesActuales = obtenerSeriesDeMayorCarga(particion.sesionesActuales);
+  const seriesAnteriores = obtenerSeriesDeMayorCarga(particion.sesionesAnteriores);
+  const ejercicios = [];
+
+  seriesActuales.forEach(function (serieActual, nombreEjercicio) {
+    const serieAnterior = seriesAnteriores.get(nombreEjercicio);
+    // La tolerancia evita diferencias causadas únicamente por conversiones de unidades.
+    const cambio = crearCambio(serieActual.pesoLibras, serieAnterior?.pesoLibras, 1e-9);
+
+    ejercicios.push({
+      ejercicio: nombreEjercicio,
+      actual: serieActual.pesoLibras,
+      anterior: serieAnterior ? serieAnterior.pesoLibras : null,
+      serieActual: serieActual,
+      serieAnterior: serieAnterior || null,
+      diferencia: cambio.diferencia,
+      porcentaje: cambio.porcentaje,
+      estado: cambio.estado
+    });
+  });
+
+  return resumirComparacion(ejercicios, particion);
 }
 
 export function crearProgresionFuerza(
@@ -80,19 +156,7 @@ export function crearProgresionFuerza(
     });
   });
 
-  ejercicios.sort(function (primerEjercicio, segundoEjercicio) {
-    return segundoEjercicio.porcentaje - primerEjercicio.porcentaje;
-  });
-
-  return {
-    ejercicios: ejercicios,
-    subieron: contarPorEstado(ejercicios, 'subio'),
-    mantienen: contarPorEstado(ejercicios, 'mantiene'),
-    bajaron: contarPorEstado(ejercicios, 'bajo'),
-    nuevos: contarPorEstado(ejercicios, 'nuevo'),
-    hayHistorialAnterior: particion.hayHistorialAnterior,
-    comparadoCon: particion.comparadoCon
-  };
+  return resumirComparacion(ejercicios, particion);
 }
 
 // Los ejercicios que mas se movieron en cada direccion, para el panel de fuerza.

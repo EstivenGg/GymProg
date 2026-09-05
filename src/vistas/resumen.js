@@ -89,8 +89,7 @@ function crearTextoDiferenciaDuracion(diferencia, aumenta) {
     + (aumenta ? 'más' : 'menos');
 }
 
-// La insignia solo muestra el porcentaje; el detalle en palabras vive en el
-// title, y el periodo de comparacion se enuncia una sola vez para toda la tira.
+// La insignia muestra el porcentaje y el texto emergente explica la comparación.
 function pintarComparacion(
   idElemento,
   valorActual,
@@ -195,8 +194,7 @@ function obtenerAgrupacionVolumen() {
     return agrupacionVolumenSeleccionada;
   }
 
-  // En una pantalla estrecha, un año de entrenamientos son casi doscientas
-  // barras de un par de píxeles. La vista semanal es el punto de partida útil.
+  // La agrupación semanal evita demasiadas barras en pantallas estrechas.
   const pantallaEstrecha = matchMedia('(max-width: 700px)').matches;
 
   agrupacionVolumenSeleccionada = pantallaEstrecha ? 'semana' : 'sesion';
@@ -216,8 +214,7 @@ function obtenerRutinaVolumen() {
   return rutinaVolumenSeleccionada;
 }
 
-// El color se resuelve contra el historial completo: la misma rutina se pinta
-// igual aquí que en el listado de sesiones, sin importar el filtro de periodo.
+// Los colores permanecen iguales al filtrar el periodo.
 function obtenerColoresDeRutinaResueltos() {
   const variablesPorRutina = crearVariablesDeRutina(estadoAplicacion.sesiones);
   const coloresPorRutina = new Map();
@@ -275,10 +272,7 @@ function decorarPuntoDeVolumen(punto, agrupacion, coloresPorRutina, colorearPorR
   return decorado;
 }
 
-// Al agrupar, una semana suelta de una sola rutina heredaría su color y saldría
-// pintada de azul entre barras naranjas, sin nada en la leyenda que lo explique.
-// Por eso el color por rutina solo se aplica cuando todas las barras lo pueden
-// tener: en la vista por sesión, o con una rutina ya filtrada.
+// Los colores por rutina se usan si cada barra representa una sola rutina.
 function crearPuntosDeVolumen(sesiones, agrupacion, rutina) {
   const coloresPorRutina = obtenerColoresDeRutinaResueltos();
   const colorearPorRutina = agrupacion === 'sesion' || rutina !== RUTINA_TODAS;
@@ -388,8 +382,7 @@ function pintarRangoDeDatos(primeraFecha, ultimaFecha) {
   );
 }
 
-// El filtro no cuenta hacia atrás desde hoy sino desde el último dato del
-// archivo, así que esa fecha tiene que estar a la vista.
+// El periodo termina en la fecha más reciente del archivo.
 function pintarReferenciaDePeriodo() {
   const referencia = obtenerElemento('dataAnchor');
 
@@ -479,18 +472,17 @@ function actualizarBotonesDeAgrupacion() {
     obtenerAgrupacion(agrupacionActiva).descripcion;
 }
 
-function crearChipDeLeyenda(texto, color) {
-  const chip = crearElemento('span', 'volume-legend-chip');
-  const muestra = crearElemento('i', '');
+function crearEtiquetaDeLeyenda(texto, color) {
+  const etiquetaLeyenda = crearElemento('span', 'volume-legend-chip');
+  const muestraColor = crearElemento('i', '');
 
-  muestra.style.background = color;
-  chip.append(muestra, crearElemento('span', '', texto));
+  muestraColor.style.background = color;
+  etiquetaLeyenda.append(muestraColor, crearElemento('span', '', texto));
 
-  return chip;
+  return etiquetaLeyenda;
 }
 
-// La leyenda solo tiene sentido cuando cada barra puede ser de una rutina
-// distinta; al filtrar o al agrupar, todas comparten color y sobra.
+// La leyenda por rutina aparece si las barras pueden tener colores distintos.
 function pintarLeyendaDeVolumen(agrupacion, rutina) {
   const leyenda = obtenerElemento('volumeLegend');
   const coloresPorRutina = obtenerColoresDeRutinaResueltos();
@@ -500,12 +492,12 @@ function pintarLeyendaDeVolumen(agrupacion, rutina) {
       ? leerVariableCSS('--orange')
       : coloresPorRutina.get(rutina);
 
-    leyenda.replaceChildren(crearChipDeLeyenda('Volumen', colorUnico));
+    leyenda.replaceChildren(crearEtiquetaDeLeyenda('Volumen', colorUnico));
     return;
   }
 
   const rutinasDelHistorial = contarSesionesPorRutina(estadoAplicacion.sesiones);
-  const chips = document.createDocumentFragment();
+  const etiquetasLeyenda = document.createDocumentFragment();
   let hayRutinasSinColorPropio = false;
 
   rutinasDelHistorial.forEach(function (rutinaDelHistorial) {
@@ -516,17 +508,19 @@ function pintarLeyendaDeVolumen(agrupacion, rutina) {
       return;
     }
 
-    chips.appendChild(crearChipDeLeyenda(rutinaDelHistorial.titulo, color));
+    etiquetasLeyenda.appendChild(
+      crearEtiquetaDeLeyenda(rutinaDelHistorial.titulo, color)
+    );
   });
 
   if (hayRutinasSinColorPropio) {
-    chips.appendChild(crearChipDeLeyenda(
+    etiquetasLeyenda.appendChild(crearEtiquetaDeLeyenda(
       'Otras rutinas',
       leerVariableCSS(VARIABLE_OTRAS_RUTINAS)
     ));
   }
 
-  leyenda.replaceChildren(chips);
+  leyenda.replaceChildren(etiquetasLeyenda);
 }
 
 function pintarNotaDeVolumen(sesionesDeLaRutina) {

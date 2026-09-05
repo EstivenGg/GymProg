@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { crearProgresionFuerza, obtenerMayoresCambios } from '../src/progresion.js';
+import { crearComparacionCargas, crearProgresionFuerza, obtenerMayoresCambios } from '../src/progresion.js';
 
 function crearSesion(fecha, series) {
   const inicio = new Date(fecha + 'T10:00:00');
@@ -18,6 +18,91 @@ function crearSesion(fecha, series) {
     })
   };
 }
+
+test('compara pesos registrados aunque el mejor 1RM corresponda a otra serie', function () {
+  const sesiones = [
+    crearSesion('2026-01-02', [['Banca', 100, 20], ['Banca', 110, 3]]),
+    crearSesion('2026-01-09', [['Banca', 120, 5]])
+  ];
+  const fechaReferencia = new Date('2026-01-14T10:00:00');
+  const comparacion = crearComparacionCargas(sesiones, fechaReferencia, '7');
+  const cambioBanca = comparacion.ejercicios[0];
+
+  assert.equal(cambioBanca.anterior, 110);
+  assert.equal(cambioBanca.actual, 120);
+  assert.equal(cambioBanca.estado, 'subio');
+  assert.equal(cambioBanca.serieAnterior.repeticiones, 3);
+  assert.equal(cambioBanca.serieActual.repeticiones, 5);
+  assert.equal(cambioBanca.serieActual.fecha, sesiones[1].inicio);
+  assert.equal(cambioBanca.porcentaje, 10 / 110);
+  assert.equal(crearProgresionFuerza(sesiones, fechaReferencia, '7').ejercicios[0].estado, 'bajo');
+});
+
+test('más repeticiones con el mismo peso mantienen la categoría de carga', function () {
+  const comparacion = crearComparacionCargas([
+    crearSesion('2026-01-02', [['Banca', 100, 5]]),
+    crearSesion('2026-01-09', [['Banca', 100, 12]])
+  ], new Date('2026-01-14T10:00:00'), '7');
+
+  assert.equal(comparacion.mantienen, 1);
+  assert.equal(comparacion.ejercicios[0].porcentaje, 0);
+  assert.equal(comparacion.ejercicios[0].serieActual.repeticiones, 12);
+});
+
+test('conserva la serie de más repeticiones y la fecha más reciente en empates', function () {
+  const sesiones = [
+    crearSesion('2026-01-02', [['Banca', 100, 5]]),
+    crearSesion('2026-01-09', [['Banca', 120, 5], ['Banca', 120, 8]]),
+    crearSesion('2026-01-12', [['Banca', 120, 8]])
+  ];
+  const comparacion = crearComparacionCargas(
+    [sesiones[0], sesiones[2], sesiones[1]], new Date('2026-01-14T10:00:00'), '7'
+  );
+
+  assert.equal(comparacion.ejercicios[0].serieActual.repeticiones, 8);
+  assert.equal(comparacion.ejercicios[0].serieActual.fecha, sesiones[2].inicio);
+});
+
+test('la comparación de cargas excluye calentamientos y datos inválidos', function () {
+  const sesion = crearSesion('2026-01-09', [
+    ['Banca', 100, 5], ['Cinta', null, null], ['Carga inválida', -10, 5],
+    ['Sin repeticiones', 100, 0], ['Infinito', Infinity, 5]
+  ]);
+  sesion.series.push({ tipoSerie: 'warmup', ejercicio: 'Banca', pesoLibras: 500, repeticiones: 5 });
+  const comparacion = crearComparacionCargas([sesion], new Date('2026-01-14T10:00:00'), '7');
+
+  assert.equal(comparacion.ejercicios.length, 1);
+  assert.equal(comparacion.nuevos, 1);
+  assert.equal(comparacion.hayHistorialAnterior, false);
+  assert.equal(comparacion.ejercicios[0].actual, 100);
+  assert.equal(comparacion.ejercicios[0].serieAnterior, null);
+});
+
+test('detecta cambios pequeños de carga y ordena aumentos y descensos', function () {
+  const comparacion = crearComparacionCargas([
+    crearSesion('2026-01-02', [['Banca', 100, 5], ['Remo', 100, 5], ['Curl', 100, 5]]),
+    crearSesion('2026-01-09', [['Banca', 101, 5], ['Remo', 80, 5], ['Curl', 110, 5]])
+  ], new Date('2026-01-14T10:00:00'), '7');
+  const mayoresCambios = obtenerMayoresCambios(comparacion, 4);
+
+  assert.equal(comparacion.subieron, 2);
+  assert.equal(comparacion.bajaron, 1);
+  assert.deepEqual(mayoresCambios.subieron.map(function (ejercicio) {
+    return ejercicio.ejercicio;
+  }), ['Curl', 'Banca']);
+  assert.equal(mayoresCambios.bajaron[0].ejercicio, 'Remo');
+});
+
+test('todo el historial compara las cargas máximas de sus dos mitades', function () {
+  const comparacion = crearComparacionCargas([
+    crearSesion('2026-01-01', [['Banca', 100, 5]]),
+    crearSesion('2026-01-14', [['Banca', 120, 5]])
+  ], new Date('2026-01-14T10:00:00'), 'all');
+
+  assert.equal(comparacion.ejercicios[0].anterior, 100);
+  assert.equal(comparacion.ejercicios[0].actual, 120);
+  assert.match(comparacion.comparadoCon, /mitad anterior/);
+});
 
 test('clasifica cada ejercicio segun su mejor 1RM entre periodos', function () {
   const sesiones = [

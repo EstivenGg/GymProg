@@ -8,7 +8,7 @@ import {
   NOMBRES_DIAS
 } from '../configuracion.js';
 import { calcular1RMEstimado, calcularMetricasSesion, esSerieEfectiva, obtenerInicioDeSemana } from '../metricas.js';
-import { crearProgresionFuerza, obtenerMayoresCambios } from '../progresion.js';
+import { crearComparacionCargas, crearProgresionFuerza, obtenerMayoresCambios } from '../progresion.js';
 import {
   clonarElementoDePlantilla,
   crearClaveDeFecha,
@@ -18,12 +18,11 @@ import {
   sumarDias
 } from '../utilidades.js';
 
-// El calendario es una ventana movil de 12 meses: asi siempre esta lleno, en vez
-// de vaciarse cada 1 de enero como haria un ano natural.
+// El calendario conserva una ventana móvil de 12 meses.
 const SEMANAS_CALENDARIO = 52;
 const CAMBIOS_POR_GRUPO = 4;
 
-function crearTextoDelta(cambio) {
+function crearTextoVariacion(cambio) {
   const porcentaje = Math.round(Math.abs(cambio.porcentaje) * 100);
 
   if (porcentaje === 0) {
@@ -161,7 +160,7 @@ function pintarCalendarioActividad(configuracion) {
       ? siguienteMes.columna
       : SEMANAS_CALENDARIO + 1;
 
-    // Un mes que solo ocupa una columna no cabe: quedaria recortado a una letra
+    // Se ocultan los nombres de mes que no caben completos.
     if (columnaFinal - mes.columna < 2) {
       return;
     }
@@ -329,12 +328,14 @@ function crearGrupoDeCambios(titulo, ejercicios, mensajeVacio) {
       nombre.title = ejercicio.ejercicio;
       elemento.querySelector('[data-field="from"]').textContent = formatearCarga(
         ejercicio.anterior
-      );
+      ) + ' × ' + ejercicio.serieAnterior.repeticiones + ' reps';
       elemento.querySelector('[data-field="to"]').textContent = formatearCarga(
         ejercicio.actual
-      );
+      ) + ' × ' + ejercicio.serieActual.repeticiones + ' reps';
       insignia.classList.add(ejercicio.diferencia > 0 ? 'increase' : 'decrease');
-      insignia.querySelector('[data-field="delta"]').textContent = crearTextoDelta(ejercicio);
+      insignia.querySelector('[data-field="delta"]').textContent = crearTextoVariacion(ejercicio);
+      insignia.title = 'Cambio en la mayor carga registrada: '
+        + formatearCarga(ejercicio.diferencia);
       lista.appendChild(elemento);
     });
   }
@@ -342,7 +343,7 @@ function crearGrupoDeCambios(titulo, ejercicios, mensajeVacio) {
   return grupo;
 }
 
-function pintarProgresionFuerza(progresion) {
+function pintarComparacionCargas(progresion) {
   obtenerElemento('strengthPeriod').textContent = progresion.hayHistorialAnterior
     ? progresion.comparadoCon
     : 'Sin historial anterior para comparar';
@@ -398,8 +399,7 @@ function obtenerMejoresSeriesPorEjercicio() {
   return mejoresSeries;
 }
 
-// El cambio compara el mejor 1RM de cada bloque de periodo, no la marca de la
-// fila (que es la mejor del filtro entero); el title de la insignia lo aclara.
+// El cambio compara el mejor 1RM de cada bloque del periodo.
 function pintarCambioDelRecord(filaRecord, cambio) {
   const insignia = filaRecord.querySelector('[data-field="change"]');
   const valorCambio = filaRecord.querySelector('[data-field="change-value"]');
@@ -419,14 +419,14 @@ function pintarCambioDelRecord(filaRecord, cambio) {
     insignia.classList.add(cambio.diferencia > 0 ? 'increase' : 'decrease');
   }
 
-  valorCambio.textContent = crearTextoDelta(cambio);
+  valorCambio.textContent = crearTextoVariacion(cambio);
   insignia.title = 'Mejor 1RM del periodo: '
     + formatearCarga(cambio.actual)
     + ' · anterior: '
     + formatearCarga(cambio.anterior);
 }
 
-// El escalonado sugiere orden; pasado un puñado de filas solo hace esperar.
+// La entrada escalonada se limita a las primeras filas.
 const ESCALONES_MAXIMOS = 8;
 const MILISEGUNDOS_POR_ESCALON = 34;
 
@@ -458,13 +458,13 @@ function crearContextoDeRecord(record) {
 }
 
 function crearFilaDeRecordDeReps(record) {
-  const elemento = clonarElementoDePlantilla('repRecordTemplate');
-  const etiquetaEsfuerzo = elemento.querySelector('[data-field="effort"]');
+  const filaRecord = clonarElementoDePlantilla('repRecordTemplate');
+  const etiquetaEsfuerzo = filaRecord.querySelector('[data-field="effort"]');
 
-  elemento.dataset.exercise = record.ejercicio;
-  elemento.querySelector('[data-field="exercise"]').textContent = record.ejercicio;
-  elemento.querySelector('[data-field="reps"]').textContent = String(record.repeticiones);
-  elemento.querySelector('[data-field="context"]').textContent =
+  filaRecord.dataset.exercise = record.ejercicio;
+  filaRecord.querySelector('[data-field="exercise"]').textContent = record.ejercicio;
+  filaRecord.querySelector('[data-field="reps"]').textContent = String(record.repeticiones);
+  filaRecord.querySelector('[data-field="context"]').textContent =
     crearContextoDeRecord(record);
 
   if (record.esfuerzo) {
@@ -479,30 +479,31 @@ function crearFilaDeRecordDeReps(record) {
     etiquetaEsfuerzo.classList.add('is-missing');
   }
 
-  return elemento;
+  return filaRecord;
 }
 
-// Dominadas y fondos no tienen 1RM, así que la tabla de récords estimados los
-// dejaba fuera pese a ser de lo más repetido del historial.
+// Los récords de repeticiones incluyen ejercicios sin un 1RM estimado.
 function pintarRecordsDeRepeticiones() {
-  const panel = obtenerElemento('repRecordsPanel');
-  const lista = obtenerElemento('repRecords');
-  const records = crearRecordsDeRepeticiones(estadoAplicacion.seriesFiltradas);
+  const panelRecords = obtenerElemento('repRecordsPanel');
+  const listaRecords = obtenerElemento('repRecords');
+  const recordsDeRepeticiones = crearRecordsDeRepeticiones(
+    estadoAplicacion.seriesFiltradas
+  );
 
-  panel.hidden = records.length === 0;
+  panelRecords.hidden = recordsDeRepeticiones.length === 0;
 
-  if (records.length === 0) {
-    lista.replaceChildren();
+  if (recordsDeRepeticiones.length === 0) {
+    listaRecords.replaceChildren();
     return;
   }
 
   const elementos = document.createDocumentFragment();
 
-  records.forEach(function (record) {
+  recordsDeRepeticiones.forEach(function (record) {
     elementos.appendChild(crearFilaDeRecordDeReps(record));
   });
 
-  lista.replaceChildren(elementos);
+  listaRecords.replaceChildren(elementos);
 }
 
 function manejarClicEnRecordsDeReps(evento) {
@@ -594,7 +595,13 @@ export function pintarProgreso(configuracionOriginal) {
     estadoAplicacion.periodoSeleccionado
   );
 
-  pintarProgresionFuerza(progresion);
+  const comparacionCargas = crearComparacionCargas(
+    estadoAplicacion.sesiones,
+    estadoAplicacion.fechaMasReciente,
+    estadoAplicacion.periodoSeleccionado
+  );
+
+  pintarComparacionCargas(comparacionCargas);
   pintarCalendarioActividad(configuracion);
   pintarPatronesDeEntrenamiento();
   pintarRecordsDeRepeticiones();

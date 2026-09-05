@@ -21,9 +21,7 @@ import {
 
 const SESIONES_POR_BLOQUE = 25;
 
-// El color no decora: identifica la rutina, para poder distinguir Tiron de
-// Pierna de un vistazo al recorrer el historial. El reparto vive en rutinas.js
-// porque la grafica de volumen tiene que usar exactamente el mismo.
+// El historial y la gráfica de volumen comparten los colores de cada rutina.
 const formatoMesLargo = new Intl.DateTimeFormat('es-CO', {
   month: 'long',
   year: 'numeric'
@@ -132,30 +130,29 @@ function crearEtiquetaDeSerie(serie) {
   return etiquetaSerie;
 }
 
-// El RPE se muestra con su cobertura: sin saber sobre cuántas series se calcula,
-// un 8 de una serie suelta parece lo mismo que un 8 de cuatro.
-function pintarEsfuerzoDelEjercicio(elemento, series) {
-  const etiqueta = elemento.querySelector('[data-field="effort"]');
-  const esfuerzo = crearResumenEsfuerzo(series);
+// La cobertura indica cuántas series participan en el promedio de RPE.
+function pintarEsfuerzoDelEjercicio(detalleEjercicio, series) {
+  const etiquetaEsfuerzo = detalleEjercicio.querySelector('[data-field="effort"]');
+  const resumenEsfuerzo = crearResumenEsfuerzo(series);
 
-  if (!esfuerzo) {
-    etiqueta.hidden = true;
+  if (!resumenEsfuerzo) {
+    etiquetaEsfuerzo.hidden = true;
     return;
   }
 
-  etiqueta.hidden = false;
-  etiqueta.textContent = 'RPE '
-    + formatoNumero.format(esfuerzo.promedio)
+  etiquetaEsfuerzo.hidden = false;
+  etiquetaEsfuerzo.textContent = 'RPE '
+    + formatoNumero.format(resumenEsfuerzo.promedio)
     + ' · '
-    + esfuerzo.seriesConEsfuerzo
+    + resumenEsfuerzo.seriesConEsfuerzo
     + '/'
-    + esfuerzo.seriesTotales;
-  etiqueta.title = 'RPE medio de '
-    + esfuerzo.seriesConEsfuerzo
+    + resumenEsfuerzo.seriesTotales;
+  etiquetaEsfuerzo.title = 'RPE medio de '
+    + resumenEsfuerzo.seriesConEsfuerzo
     + ' de '
-    + esfuerzo.seriesTotales
+    + resumenEsfuerzo.seriesTotales
     + ' series · máximo '
-    + formatoNumero.format(esfuerzo.maximo);
+    + formatoNumero.format(resumenEsfuerzo.maximo);
 }
 
 function crearDetalleDeEjercicio(nombreEjercicio, series) {
@@ -206,21 +203,21 @@ function crearDetalleDeSesion(sesion) {
 }
 
 function pintarEsfuerzoDeLaSesion(tarjetaSesion, seriesEfectivas) {
-  const celda = tarjetaSesion.querySelector('[data-field="effort-cell"]');
-  const esfuerzo = crearResumenEsfuerzo(seriesEfectivas);
+  const celdaEsfuerzo = tarjetaSesion.querySelector('[data-field="effort-cell"]');
+  const resumenEsfuerzo = crearResumenEsfuerzo(seriesEfectivas);
 
-  if (!mereceMostrarse(esfuerzo)) {
-    celda.hidden = true;
+  if (!mereceMostrarse(resumenEsfuerzo)) {
+    celdaEsfuerzo.hidden = true;
     return;
   }
 
-  celda.hidden = false;
+  celdaEsfuerzo.hidden = false;
   tarjetaSesion.querySelector('[data-field="effort"]').textContent =
-    formatoNumero.format(esfuerzo.promedio);
+    formatoNumero.format(resumenEsfuerzo.promedio);
   tarjetaSesion.querySelector('[data-field="effort-note"]').textContent = 'RPE en '
-    + esfuerzo.seriesConEsfuerzo
+    + resumenEsfuerzo.seriesConEsfuerzo
     + '/'
-    + esfuerzo.seriesTotales;
+    + resumenEsfuerzo.seriesTotales;
 }
 
 function crearTarjetaDeSesion(sesion, indiceSesion, animarEntrada, colorRutina) {
@@ -271,9 +268,9 @@ function crearTarjetaDeSesion(sesion, indiceSesion, animarEntrada, colorRutina) 
 
 function alternarDetalleDeSesion(botonSesion) {
   const tarjetaSesion = botonSesion.closest('.session-card');
-  const vaAAbrirse = !tarjetaSesion.classList.contains('open');
+  const seAbrira = !tarjetaSesion.classList.contains('open');
 
-  if (vaAAbrirse && tarjetaSesion.dataset.detailLoaded !== 'true') {
+  if (seAbrira && tarjetaSesion.dataset.detailLoaded !== 'true') {
     const sesion = sesionesPorTarjeta.get(tarjetaSesion);
 
     if (sesion) {
@@ -284,9 +281,9 @@ function alternarDetalleDeSesion(botonSesion) {
     }
   }
 
-  tarjetaSesion.classList.toggle('open', vaAAbrirse);
+  tarjetaSesion.classList.toggle('open', seAbrira);
 
-  botonSesion.setAttribute('aria-expanded', String(vaAAbrirse));
+  botonSesion.setAttribute('aria-expanded', String(seAbrira));
 }
 
 function coincideConBusqueda(sesion, terminoNormalizado) {
@@ -351,15 +348,14 @@ function conectarEventosDeSesiones() {
 }
 
 function buscarTarjetaDeSesion(claveSesion) {
-  const tarjetas = document.querySelectorAll('#sessionList .session-card');
+  const tarjetasSesion = document.querySelectorAll('#sessionList .session-card');
 
-  return Array.from(tarjetas).find(function (tarjeta) {
+  return Array.from(tarjetasSesion).find(function (tarjeta) {
     return tarjeta.dataset.sessionKey === claveSesion;
   }) || null;
 }
 
-// Punto de entrada desde las gráficas: deja la sesión visible, abierta y con el
-// foco puesto, aunque estuviera escondida tras la búsqueda o la paginación.
+// Muestra y abre una sesión seleccionada desde una gráfica.
 export function abrirSesion(claveSesion) {
   const sesionesOrdenadas = estadoAplicacion.sesionesFiltradas
     .slice()
