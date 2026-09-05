@@ -1,4 +1,4 @@
-import { obtenerElemento } from './utilidades.js';
+import { normalizarTexto, obtenerElemento } from './utilidades.js';
 
 const selectoresRegistrados = [];
 
@@ -10,14 +10,12 @@ function marcarOpcionActiva(seleccion, opcionElemento) {
   seleccion.opcionActivaId = null;
 
   if (!opcionElemento) {
-    seleccion.lista.removeAttribute('aria-activedescendant');
     return;
   }
 
   opcionElemento.classList.add('is-active');
   opcionElemento.scrollIntoView({ block: 'nearest' });
   seleccion.opcionActivaId = opcionElemento.id;
-  seleccion.lista.setAttribute('aria-activedescendant', opcionElemento.id);
 }
 
 function actualizarEstadoSeleccionado(seleccion) {
@@ -29,7 +27,7 @@ function actualizarEstadoSeleccionado(seleccion) {
   Array.from(seleccion.lista.children).forEach(function (opcionElemento) {
     const esSeleccionada = opcionElemento.dataset.valor === seleccion.select.value;
     opcionElemento.classList.toggle('is-selected', esSeleccionada);
-    opcionElemento.setAttribute('aria-selected', esSeleccionada ? 'true' : 'false');
+    opcionElemento.setAttribute('aria-pressed', esSeleccionada ? 'true' : 'false');
   });
 }
 
@@ -49,10 +47,10 @@ function reconstruirOpciones(seleccion) {
   const fragmento = document.createDocumentFragment();
 
   Array.from(seleccion.select.options).forEach(function (opcionNativa, indice) {
-    const opcionElemento = document.createElement('li');
+    const opcionElemento = document.createElement('button');
+    opcionElemento.type = 'button';
     opcionElemento.className = 'custom-select-option';
     opcionElemento.id = seleccion.idBase + '-opcion-' + indice;
-    opcionElemento.setAttribute('role', 'option');
     opcionElemento.textContent = opcionNativa.textContent;
     opcionElemento.dataset.valor = opcionNativa.value;
 
@@ -75,12 +73,12 @@ function reconstruirOpciones(seleccion) {
 function sincronizarSelector(seleccion) {
   reconstruirOpciones(seleccion);
   actualizarEstadoSeleccionado(seleccion);
+  filtrarOpciones(seleccion);
 }
 
 function cerrarSelector(seleccion) {
   seleccion.contenedor.classList.remove('open');
   seleccion.boton.setAttribute('aria-expanded', 'false');
-  seleccion.lista.removeAttribute('aria-activedescendant');
   seleccion.opcionActivaId = null;
 }
 
@@ -92,6 +90,40 @@ function cerrarOtrosSelectores(seleccionActual) {
   });
 }
 
+function filtrarOpciones(seleccion) {
+  if (!seleccion.buscador) {
+    return;
+  }
+
+  const termino = normalizarTexto(seleccion.buscador.value.trim());
+  let cantidadVisible = 0;
+
+  Array.from(seleccion.lista.children).forEach(function (opcion) {
+    const coincide = normalizarTexto(opcion.textContent).includes(termino);
+
+    opcion.hidden = !coincide;
+    if (coincide) {
+      cantidadVisible += 1;
+    }
+  });
+
+  if (seleccion.mensajeVacio) {
+    seleccion.mensajeVacio.hidden = cantidadVisible > 0;
+  }
+
+  const opcionSeleccionadaVisible = seleccion.lista.querySelector(
+    '.is-selected:not([hidden])'
+  );
+  const primeraOpcionVisible = Array.from(seleccion.lista.children).find(function (opcion) {
+    return !opcion.hidden;
+  });
+
+  marcarOpcionActiva(
+    seleccion,
+    opcionSeleccionadaVisible || primeraOpcionVisible || null
+  );
+}
+
 function abrirSelector(seleccion) {
   if (seleccion.lista.children.length === 0) {
     return;
@@ -101,15 +133,29 @@ function abrirSelector(seleccion) {
   seleccion.contenedor.classList.add('open');
   seleccion.boton.setAttribute('aria-expanded', 'true');
 
-  const opcionSeleccionada = seleccion.lista.querySelector('.is-selected')
-    || seleccion.lista.firstElementChild;
+  if (seleccion.buscador) {
+    seleccion.buscador.value = '';
+    filtrarOpciones(seleccion);
+  }
+
+  const opcionSeleccionada = seleccion.lista.querySelector('.is-selected:not([hidden])')
+    || Array.from(seleccion.lista.children).find(function (opcion) {
+      return !opcion.hidden;
+    });
 
   marcarOpcionActiva(seleccion, opcionSeleccionada);
-  seleccion.lista.focus({ preventScroll: true });
+
+  if (seleccion.buscador) {
+    seleccion.buscador.focus({ preventScroll: true });
+  } else {
+    opcionSeleccionada.focus({ preventScroll: true });
+  }
 }
 
 function moverOpcionActiva(seleccion, delta) {
-  const opciones = Array.from(seleccion.lista.children);
+  const opciones = Array.from(seleccion.lista.children).filter(function (opcion) {
+    return !opcion.hidden;
+  });
 
   if (opciones.length === 0) {
     return;
@@ -121,6 +167,10 @@ function moverOpcionActiva(seleccion, delta) {
 
   const siguienteIndice = Math.max(0, Math.min(opciones.length - 1, indiceActual + delta));
   marcarOpcionActiva(seleccion, opciones[siguienteIndice]);
+
+  if (document.activeElement !== seleccion.buscador) {
+    opciones[siguienteIndice].focus({ preventScroll: true });
+  }
 }
 
 function manejarClicBoton(seleccion) {
@@ -141,6 +191,10 @@ function manejarTecladoBoton(seleccion, evento) {
 }
 
 function manejarTecladoLista(seleccion, evento) {
+  const opcionesVisibles = Array.from(seleccion.lista.children).filter(function (opcion) {
+    return !opcion.hidden;
+  });
+
   if (evento.key === 'ArrowDown') {
     evento.preventDefault();
     moverOpcionActiva(seleccion, 1);
@@ -149,10 +203,13 @@ function manejarTecladoLista(seleccion, evento) {
     moverOpcionActiva(seleccion, -1);
   } else if (evento.key === 'Home') {
     evento.preventDefault();
-    marcarOpcionActiva(seleccion, seleccion.lista.firstElementChild);
+    marcarOpcionActiva(seleccion, opcionesVisibles[0]);
+    opcionesVisibles[0]?.focus({ preventScroll: true });
   } else if (evento.key === 'End') {
     evento.preventDefault();
-    marcarOpcionActiva(seleccion, seleccion.lista.lastElementChild);
+    const ultimaOpcion = opcionesVisibles.at(-1);
+    marcarOpcionActiva(seleccion, ultimaOpcion);
+    ultimaOpcion?.focus({ preventScroll: true });
   } else if (evento.key === 'Enter' || evento.key === ' ') {
     evento.preventDefault();
     const opcionActiva = obtenerElemento(seleccion.opcionActivaId);
@@ -166,6 +223,27 @@ function manejarTecladoLista(seleccion, evento) {
     seleccion.boton.focus();
   } else if (evento.key === 'Tab') {
     cerrarSelector(seleccion);
+  }
+}
+
+function manejarTecladoBuscador(seleccion, evento) {
+  if (evento.key === 'ArrowDown') {
+    evento.preventDefault();
+    moverOpcionActiva(seleccion, 1);
+  } else if (evento.key === 'ArrowUp') {
+    evento.preventDefault();
+    moverOpcionActiva(seleccion, -1);
+  } else if (evento.key === 'Enter') {
+    evento.preventDefault();
+    const opcionActiva = obtenerElemento(seleccion.opcionActivaId);
+
+    if (opcionActiva && !opcionActiva.hidden) {
+      seleccionarValor(seleccion, opcionActiva.dataset.valor);
+    }
+  } else if (evento.key === 'Escape') {
+    evento.preventDefault();
+    cerrarSelector(seleccion);
+    seleccion.boton.focus();
   }
 }
 
@@ -183,6 +261,8 @@ function crearSelectorPersonalizado(idSelectNativo) {
   const boton = contenedor.querySelector('.custom-select-trigger');
   const lista = contenedor.querySelector('.custom-select-list');
   const valorVisible = boton.querySelector('.custom-select-value');
+  const buscador = contenedor.querySelector('.custom-select-search input');
+  const mensajeVacio = contenedor.querySelector('.custom-select-empty');
 
   const seleccion = {
     select: select,
@@ -190,6 +270,8 @@ function crearSelectorPersonalizado(idSelectNativo) {
     boton: boton,
     lista: lista,
     valorVisible: valorVisible,
+    buscador: buscador,
+    mensajeVacio: mensajeVacio,
     idBase: idSelectNativo,
     opcionActivaId: null
   };
@@ -206,6 +288,15 @@ function crearSelectorPersonalizado(idSelectNativo) {
     manejarTecladoLista(seleccion, evento);
   });
 
+  if (buscador) {
+    buscador.addEventListener('input', function () {
+      filtrarOpciones(seleccion);
+    });
+    buscador.addEventListener('keydown', function (evento) {
+      manejarTecladoBuscador(seleccion, evento);
+    });
+  }
+
   new MutationObserver(function () {
     sincronizarSelector(seleccion);
   }).observe(select, { childList: true });
@@ -217,6 +308,36 @@ function crearSelectorPersonalizado(idSelectNativo) {
 export function inicializarSelectoresPersonalizados() {
   crearSelectorPersonalizado('periodSelect');
   crearSelectorPersonalizado('exerciseSelect');
+  crearSelectorPersonalizado('routineSelect');
 
   document.addEventListener('click', manejarClicFueraDelSelector);
+}
+
+export function establecerValorSelector(idSelectNativo, valor) {
+  const seleccion = selectoresRegistrados.find(function (selectorRegistrado) {
+    return selectorRegistrado.select.id === idSelectNativo;
+  });
+
+  if (!seleccion) {
+    return false;
+  }
+
+  const existeOpcion = Array.from(seleccion.select.options).some(function (opcion) {
+    return opcion.value === valor;
+  });
+
+  if (!existeOpcion) {
+    return false;
+  }
+
+  const valorAnterior = seleccion.select.value;
+  seleccion.select.value = valor;
+  actualizarEstadoSeleccionado(seleccion);
+  cerrarSelector(seleccion);
+
+  if (valor !== valorAnterior) {
+    seleccion.select.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  return true;
 }

@@ -1,4 +1,4 @@
-import { estadoAplicacion } from './configuracion.js';
+import { estadoAplicacion, LIBRAS_POR_KILOGRAMO } from './configuracion.js';
 import {
   convertirFechaHevy,
   convertirNumero,
@@ -151,7 +151,34 @@ export function convertirCSVaObjetos(textoCSVOriginal) {
   });
 }
 
-function convertirFilaEnSerie(filaCSV) {
+// Hevy exporta el peso en la unidad de la cuenta: unas veces weight_lbs y
+// otras weight_kg. El tablero trabaja siempre en libras, asi que la conversion
+// ocurre aqui, al leer, y no en cada vista.
+export function obtenerPesoEnLibras(filaCSV) {
+  const pesoLibras = convertirNumero(filaCSV.weight_lbs);
+
+  if (pesoLibras !== null) {
+    return pesoLibras;
+  }
+
+  const pesoKilogramos = convertirNumero(filaCSV.weight_kg);
+
+  if (pesoKilogramos === null) {
+    return null;
+  }
+
+  return pesoKilogramos * LIBRAS_POR_KILOGRAMO;
+}
+
+export function crearClaveSesion(fechaInicio, tituloSesion) {
+  return fechaInicio.getTime() + '|' + tituloSesion;
+}
+
+export function esFechaValida(fecha) {
+  return fecha instanceof Date && !Number.isNaN(fecha.getTime());
+}
+
+export function convertirFilaEnSerie(filaCSV) {
   let indiceSerie = convertirNumero(filaCSV.set_index);
 
   if (indiceSerie === null) {
@@ -167,7 +194,7 @@ function convertirFilaEnSerie(filaCSV) {
     notasEjercicio: filaCSV.exercise_notes || '',
     indiceSerie: indiceSerie,
     tipoSerie: filaCSV.set_type || 'normal',
-    pesoLibras: convertirNumero(filaCSV.weight_lbs),
+    pesoLibras: obtenerPesoEnLibras(filaCSV),
     repeticiones: convertirNumero(filaCSV.reps),
     distanciaKm: convertirNumero(filaCSV.distance_km),
     duracionSegundos: convertirNumero(filaCSV.duration_seconds),
@@ -175,10 +202,10 @@ function convertirFilaEnSerie(filaCSV) {
   };
 }
 
-function convertirFilaEnMedicion(filaCSV) {
+export function convertirFilaEnMedicion(filaCSV) {
   return {
     fecha: convertirFechaHevy(filaCSV.date),
-    pesoLibras: convertirNumero(filaCSV.weight_lbs),
+    pesoLibras: obtenerPesoEnLibras(filaCSV),
     porcentajeGrasa: convertirNumero(filaCSV.fat_percent)
   };
 }
@@ -189,6 +216,10 @@ function compararMedicionesPorFecha(primeraMedicion, segundaMedicion) {
 
 function compararSesionesPorFecha(primeraSesion, segundaSesion) {
   return primeraSesion.inicio - segundaSesion.inicio;
+}
+
+function compararSeriesPorFecha(primeraSerie, segundaSerie) {
+  return primeraSerie.inicio - segundaSerie.inicio;
 }
 
 function actualizarFechaMasReciente() {
@@ -215,29 +246,42 @@ function actualizarFechaMasReciente() {
   estadoAplicacion.fechaMasReciente = new Date(marcaMasReciente);
 }
 
-export function prepararDatos(filasEntrenamiento, filasMediciones) {
-  const seriesConvertidas = filasEntrenamiento.map(convertirFilaEnSerie);
+export function convertirFilasEnSeries(filasEntrenamiento) {
+  return filasEntrenamiento
+    .map(convertirFilaEnSerie)
+    .filter(function (serie) {
+      return esFechaValida(serie.inicio);
+    });
+}
 
-  estadoAplicacion.todasLasSeries = seriesConvertidas.filter(function (serie) {
-    return serie.inicio instanceof Date && !Number.isNaN(serie.inicio.getTime());
-  });
+export function convertirFilasEnMediciones(filasMediciones) {
+  return filasMediciones
+    .map(convertirFilaEnMedicion)
+    .filter(esMedicionUtil);
+}
 
-  const medicionesConvertidas = filasMediciones.map(convertirFilaEnMedicion);
+export function esMedicionUtil(medicion) {
+  const tienePeso = medicion.pesoLibras !== null;
+  const tieneGrasa = medicion.porcentajeGrasa !== null;
 
-  estadoAplicacion.mediciones = medicionesConvertidas
-    .filter(function (medicion) {
-      const tieneFecha = medicion.fecha instanceof Date;
-      const tienePeso = medicion.pesoLibras !== null;
-      const tieneGrasa = medicion.porcentajeGrasa !== null;
+  return esFechaValida(medicion.fecha) && (tienePeso || tieneGrasa);
+}
 
-      return tieneFecha && (tienePeso || tieneGrasa);
-    })
+// Recibe series y mediciones ya convertidas, vengan de un CSV recien leido o
+// del historial guardado en el navegador.
+export function establecerDatos(series, mediciones) {
+  estadoAplicacion.todasLasSeries = series
+    .slice()
+    .sort(compararSeriesPorFecha);
+
+  estadoAplicacion.mediciones = mediciones
+    .slice()
     .sort(compararMedicionesPorFecha);
 
   const sesionesAgrupadas = new Map();
 
   estadoAplicacion.todasLasSeries.forEach(function (serie) {
-    const claveSesion = serie.inicio.getTime() + '|' + serie.tituloSesion;
+    const claveSesion = crearClaveSesion(serie.inicio, serie.tituloSesion);
 
     if (!sesionesAgrupadas.has(claveSesion)) {
       sesionesAgrupadas.set(claveSesion, {

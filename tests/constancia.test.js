@@ -70,3 +70,36 @@ test('compara dos bloques completos de cuatro semanas', function () {
   assert.equal(resumen.comparacion.actual, 8);
   assert.equal(resumen.comparacion.diferencia, 4);
 });
+
+test('separa las semanas activas de las que llegaron a la meta', function () {
+  // Tres semanas seguidas: una con 1 sesión, otra con 3, otra con 2.
+  const sesiones = [
+    sesion('2026-08-10'),
+    sesion('2026-08-17'), sesion('2026-08-18'), sesion('2026-08-19'),
+    sesion('2026-08-24'), sesion('2026-08-25')
+  ];
+  const resumen = crearResumenConstancia(
+    sesiones,
+    new Date('2026-08-25T10:00:00'),
+    3,
+    3
+  );
+
+  assert.equal(resumen.semanasConDatos, 3);
+  assert.equal(resumen.semanasActivas, 3);
+  assert.equal(resumen.porcentajeActivo, 100);
+  assert.equal(resumen.semanasEnMeta, 1);
+});
+
+test('una semana sin entrenamientos nunca cuenta como semana en meta', function () {
+  const sesiones = [sesion('2026-08-10'), sesion('2026-08-24')];
+  const resumen = crearResumenConstancia(
+    sesiones,
+    new Date('2026-08-24T10:00:00'),
+    3,
+    1
+  );
+
+  assert.equal(resumen.semanasActivas, 2);
+  assert.equal(resumen.semanasEnMeta, 2);
+});

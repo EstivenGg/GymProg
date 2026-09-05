@@ -1,4 +1,8 @@
-import { INDICES_MESES } from './configuracion.js';
+import {
+  formatoFechaCompleta,
+  formatoFechaCorta,
+  INDICES_MESES
+} from './configuracion.js';
 
 export function obtenerElemento(idElemento) {
   return document.getElementById(idElemento);
@@ -8,7 +12,7 @@ export function clonarElementoDePlantilla(idPlantilla) {
   const plantilla = obtenerElemento(idPlantilla);
 
   if (!(plantilla instanceof HTMLTemplateElement)) {
-    throw new Error('No existe la plantilla HTML: ' + idPlantilla);
+    throw new TypeError('No existe la plantilla HTML: ' + idPlantilla);
   }
 
   const elementoRaiz = plantilla.content.firstElementChild;
@@ -18,6 +22,38 @@ export function clonarElementoDePlantilla(idPlantilla) {
   }
 
   return elementoRaiz.cloneNode(true);
+}
+
+// Un rango como "8 de sept — 4 de sept" esconde que abarca dos años. El año se
+// muestra siempre al final, y también al principio cuando los años no coinciden.
+export function describirRangoDeFechas(primeraFecha, ultimaFecha) {
+  const textoFinal = formatoFechaCompleta.format(ultimaFecha);
+
+  if (primeraFecha.getFullYear() === ultimaFecha.getFullYear()) {
+    return formatoFechaCorta.format(primeraFecha) + ' — ' + textoFinal;
+  }
+
+  return formatoFechaCompleta.format(primeraFecha) + ' — ' + textoFinal;
+}
+
+export function leerVariableCSS(nombreVariable) {
+  return getComputedStyle(document.documentElement)
+    .getPropertyValue(nombreVariable)
+    .trim();
+}
+
+export function crearElemento(etiqueta, clases, texto) {
+  const elemento = document.createElement(etiqueta);
+
+  if (clases) {
+    elemento.className = clases;
+  }
+
+  if (texto !== undefined && texto !== null) {
+    elemento.textContent = texto;
+  }
+
+  return elemento;
 }
 
 export function crearEstadoVacio(mensaje, clasesAdicionales) {

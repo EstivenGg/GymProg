@@ -1,29 +1,49 @@
+import { abrirEjercicio } from './ejercicios.js';
+import { crearRecordsDeRepeticiones } from '../records-repeticiones.js';
 import {
   estadoAplicacion,
+  formatearCarga,
   formatoFechaCompleta,
   formatoNumero,
   NOMBRES_DIAS
 } from '../configuracion.js';
 import { calcular1RMEstimado, calcularMetricasSesion, esSerieEfectiva, obtenerInicioDeSemana } from '../metricas.js';
+import { crearProgresionFuerza, obtenerMayoresCambios } from '../progresion.js';
 import {
   clonarElementoDePlantilla,
   crearClaveDeFecha,
   obtenerClaveDeUltimaSesion,
   obtenerElemento,
+  obtenerInicioDelDia,
   sumarDias
 } from '../utilidades.js';
 
+// El calendario es una ventana movil de 12 meses: asi siempre esta lleno, en vez
+// de vaciarse cada 1 de enero como haria un ano natural.
+const SEMANAS_CALENDARIO = 52;
+const CAMBIOS_POR_GRUPO = 4;
+
+function crearTextoDelta(cambio) {
+  const porcentaje = Math.round(Math.abs(cambio.porcentaje) * 100);
+
+  if (porcentaje === 0) {
+    return '0%';
+  }
+
+  return (cambio.diferencia > 0 ? '+' : '-') + porcentaje + '%';
+}
+
 function pintarCalendarioActividad(configuracion) {
-  const anioCalendario = estadoAplicacion.fechaMasReciente.getFullYear();
-  const fechaInicialDelAnio = new Date(anioCalendario, 0, 1);
-  const fechaLimiteDelAnio = new Date(anioCalendario + 1, 0, 1);
-  const fechaFinalDelAnio = new Date(anioCalendario, 11, 31);
-  const fechaInicial = obtenerInicioDeSemana(fechaInicialDelAnio);
-  const fechaFinal = sumarDias(obtenerInicioDeSemana(fechaFinalDelAnio), 6);
+  const finVentana = sumarDias(
+    obtenerInicioDeSemana(estadoAplicacion.fechaMasReciente),
+    6
+  );
+  const inicioVentana = sumarDias(finVentana, -(SEMANAS_CALENDARIO * 7) + 1);
+  const ultimoDiaConDatos = obtenerInicioDelDia(estadoAplicacion.fechaMasReciente);
   const entrenamientosPorDia = new Map();
 
   estadoAplicacion.sesiones.forEach(function (sesion) {
-    if (sesion.inicio < fechaInicialDelAnio || sesion.inicio >= fechaLimiteDelAnio) {
+    if (sesion.inicio < inicioVentana || sesion.inicio > finVentana) {
       return;
     }
 
@@ -40,8 +60,8 @@ function pintarCalendarioActividad(configuracion) {
   const fechasCalendario = [];
 
   for (
-    let fechaActual = new Date(fechaInicial);
-    fechaActual <= fechaFinal;
+    let fechaActual = new Date(inicioVentana);
+    fechaActual <= finVentana;
     fechaActual = sumarDias(fechaActual, 1)
   ) {
     fechasCalendario.push(new Date(fechaActual));
@@ -55,11 +75,10 @@ function pintarCalendarioActividad(configuracion) {
 
   const celdasCalendario = document.createDocumentFragment();
   const claveHoy = crearClaveDeFecha(new Date());
-  const cantidadSemanas = Math.ceil(fechasCalendario.length / 7);
 
   fechasCalendario.forEach(function (fecha, indiceFecha) {
     const claveDia = crearClaveDeFecha(fecha);
-    const perteneceAlAnio = fecha >= fechaInicialDelAnio && fecha < fechaLimiteDelAnio;
+    const estaEnLaVentana = fecha <= ultimoDiaConDatos;
     let cantidadEntrenamientos = 0;
 
     if (entrenamientosPorDia.has(claveDia)) {
@@ -90,17 +109,16 @@ function pintarCalendarioActividad(configuracion) {
     const celdaCalendario = clonarElementoDePlantilla('heatmapCellTemplate');
     const indiceFila = indiceFecha % 7;
     const indiceColumna = Math.floor(indiceFecha / 7);
-    const esHoy = crearClaveDeFecha(fecha) === claveHoy;
 
-    celdaCalendario.dataset.level = perteneceAlAnio ? String(nivelActividad) : '0';
+    celdaCalendario.dataset.level = estaEnLaVentana ? String(nivelActividad) : '0';
     celdaCalendario.classList.toggle(
       'no-entry-animation',
       !configuracion.animarEntrada
     );
-    celdaCalendario.classList.toggle('is-outside-year', !perteneceAlAnio);
-    celdaCalendario.classList.toggle('is-today', perteneceAlAnio && esHoy);
+    celdaCalendario.classList.toggle('is-outside-range', !estaEnLaVentana);
+    celdaCalendario.classList.toggle('is-today', estaEnLaVentana && claveDia === claveHoy);
 
-    if (perteneceAlAnio) {
+    if (estaEnLaVentana) {
       celdaCalendario.dataset.label = descripcionCelda;
       celdaCalendario.tabIndex = 0;
       celdaCalendario.setAttribute('aria-describedby', 'heatmapTooltip');
@@ -119,42 +137,55 @@ function pintarCalendarioActividad(configuracion) {
   const grillaCalendario = elementoCalendario.querySelector('.heatmap');
   const mesesCalendario = elementoCalendario.querySelector('.heatmap-months');
   const nombresMeses = new Intl.DateTimeFormat('es', { month: 'short' });
-  const columnasMeses = Array.from({ length: 12 }, function (_, indiceMes) {
-    const fechaMes = new Date(anioCalendario, indiceMes, 1);
-    const claveMes = crearClaveDeFecha(fechaMes);
-    const indiceFechaMes = fechasCalendario.findIndex(function (fecha) {
-      return crearClaveDeFecha(fecha) === claveMes;
-    });
+  const columnasDeMes = [];
+  let mesAnterior = -1;
 
-    return {
-      columna: Math.floor(indiceFechaMes / 7) + 1,
-      nombre: nombresMeses.format(fechaMes).replace('.', '')
-    };
-  });
+  for (let indiceSemana = 0; indiceSemana < SEMANAS_CALENDARIO; indiceSemana += 1) {
+    const lunesDeLaSemana = fechasCalendario[indiceSemana * 7];
+    const mesDeLaSemana = lunesDeLaSemana.getMonth();
+
+    if (mesDeLaSemana !== mesAnterior) {
+      mesAnterior = mesDeLaSemana;
+      columnasDeMes.push({
+        columna: indiceSemana + 1,
+        nombre: nombresMeses.format(lunesDeLaSemana).replace('.', '')
+      });
+    }
+  }
 
   const etiquetasMeses = document.createDocumentFragment();
 
-  columnasMeses.forEach(function (mes, indiceMes) {
+  columnasDeMes.forEach(function (mes, indiceMes) {
+    const siguienteMes = columnasDeMes[indiceMes + 1];
+    const columnaFinal = siguienteMes
+      ? siguienteMes.columna
+      : SEMANAS_CALENDARIO + 1;
+
+    // Un mes que solo ocupa una columna no cabe: quedaria recortado a una letra
+    if (columnaFinal - mes.columna < 2) {
+      return;
+    }
+
     const etiquetaMes = document.createElement('span');
-    const siguienteMes = columnasMeses[indiceMes + 1];
-    const columnaFinal = siguienteMes ? siguienteMes.columna : cantidadSemanas + 1;
 
     etiquetaMes.textContent = mes.nombre;
     etiquetaMes.style.gridColumn = mes.columna + ' / ' + columnaFinal;
     etiquetasMeses.appendChild(etiquetaMes);
   });
 
-  elementoCalendario.style.setProperty('--heatmap-weeks', String(cantidadSemanas));
+  elementoCalendario.style.setProperty(
+    '--heatmap-weeks',
+    String(SEMANAS_CALENDARIO)
+  );
   grillaCalendario.replaceChildren(celdasCalendario);
   mesesCalendario.replaceChildren(etiquetasMeses);
 
   const sesionesEnCalendario = estadoAplicacion.sesiones.filter(function (sesion) {
-    return sesion.inicio >= fechaInicialDelAnio && sesion.inicio < fechaLimiteDelAnio;
+    return sesion.inicio >= inicioVentana && sesion.inicio <= finVentana;
   }).length;
 
   obtenerElemento('heatmapLabel').textContent = sesionesEnCalendario
-    + ' sesiones · '
-    + anioCalendario;
+    + ' sesiones · últimos 12 meses';
 
   const elementoPista = obtenerElemento('heatmapHint');
   const esActividadDispersa = sesionesEnCalendario > 0 && sesionesEnCalendario < 5;
@@ -177,6 +208,35 @@ function obtenerFranjaHoraria(horaPromedio) {
   }
 
   return 'noche';
+}
+
+function pintarDistribucionSemanal(cantidadesPorDia) {
+  const ordenDeDias = [1, 2, 3, 4, 5, 6, 0];
+  const inicialesDeDias = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
+  const mayorCantidad = Math.max(1, Math.max.apply(null, cantidadesPorDia));
+  const barrasSemanales = document.createDocumentFragment();
+
+  ordenDeDias.forEach(function (indiceDia, posicion) {
+    const cantidad = cantidadesPorDia[indiceDia];
+    const palabraSesion = cantidad === 1 ? 'sesión' : 'sesiones';
+    const barraSemanal = clonarElementoDePlantilla('weekdayBarTemplate');
+
+    barraSemanal.classList.toggle(
+      'is-top',
+      cantidad > 0 && cantidad === mayorCantidad
+    );
+    barraSemanal.querySelector('.weekday-fill').style.height = cantidad
+      / mayorCantidad * 100 + '%';
+    barraSemanal.querySelector('[data-field="day"]').textContent = inicialesDeDias[posicion];
+    barraSemanal.title = NOMBRES_DIAS[indiceDia]
+      + ': '
+      + cantidad
+      + ' '
+      + palabraSesion;
+    barrasSemanales.appendChild(barraSemanal);
+  });
+
+  obtenerElemento('weekdayChart').replaceChildren(barrasSemanales);
 }
 
 function pintarPatronesDeEntrenamiento() {
@@ -226,7 +286,8 @@ function pintarPatronesDeEntrenamiento() {
       etiqueta: 'Duración promedio'
     },
     {
-      rutaIcono: 'M12 3v2m0 14v2M5.6 5.6 7 7',
+      rutaIcono: 'M12 2v2m0 16v2m10-10h-2M4 12H2m15.07-7.07-1.42 1.42M6.35 17.65l-1.42 1.42'
+        + 'm12.14 0-1.42-1.42M6.35 6.35 4.93 4.93M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z',
       valor: textoHorario,
       etiqueta: 'Horario habitual'
     }
@@ -243,21 +304,73 @@ function pintarPatronesDeEntrenamiento() {
   });
 
   obtenerElemento('patternList').replaceChildren(elementosPatron);
+  pintarDistribucionSemanal(cantidadesPorDia);
+}
 
-  const elementoInsight = obtenerElemento('patternInsight');
+function crearGrupoDeCambios(titulo, ejercicios, mensajeVacio) {
+  const grupo = clonarElementoDePlantilla('moverGroupTemplate');
 
-  if (sesiones.length === 0) {
-    elementoInsight.textContent = 'Importa tu historial para descubrir tu patrón de entrenamiento.';
-    return;
+  grupo.querySelector('[data-field="title"]').textContent = titulo;
+
+  const lista = grupo.querySelector('.mover-list');
+
+  if (ejercicios.length === 0) {
+    const mensaje = clonarElementoDePlantilla('moverEmptyTemplate');
+
+    mensaje.textContent = mensajeVacio;
+    lista.replaceWith(mensaje);
+  } else {
+    ejercicios.forEach(function (ejercicio) {
+      const elemento = clonarElementoDePlantilla('moverItemTemplate');
+      const nombre = elemento.querySelector('[data-field="name"]');
+      const insignia = elemento.querySelector('[data-field="badge"]');
+
+      nombre.textContent = ejercicio.ejercicio;
+      nombre.title = ejercicio.ejercicio;
+      elemento.querySelector('[data-field="from"]').textContent = formatearCarga(
+        ejercicio.anterior
+      );
+      elemento.querySelector('[data-field="to"]').textContent = formatearCarga(
+        ejercicio.actual
+      );
+      insignia.classList.add(ejercicio.diferencia > 0 ? 'increase' : 'decrease');
+      insignia.querySelector('[data-field="delta"]').textContent = crearTextoDelta(ejercicio);
+      lista.appendChild(elemento);
+    });
   }
 
-  elementoInsight.textContent = 'Sueles entrenar los '
-    + nombreDiaFavorito
-    + ', con sesiones de '
-    + duracionPromedio
-    + ' min '
-    + textoHorario.toLowerCase()
-    + '.';
+  return grupo;
+}
+
+function pintarProgresionFuerza(progresion) {
+  obtenerElemento('strengthPeriod').textContent = progresion.hayHistorialAnterior
+    ? progresion.comparadoCon
+    : 'Sin historial anterior para comparar';
+
+  obtenerElemento('strengthUp').textContent = String(progresion.subieron);
+  obtenerElemento('strengthFlat').textContent = String(progresion.mantienen);
+  obtenerElemento('strengthDown').textContent = String(progresion.bajaron);
+  obtenerElemento('strengthNew').textContent = String(progresion.nuevos);
+
+  const mayoresCambios = obtenerMayoresCambios(progresion, CAMBIOS_POR_GRUPO);
+  const grupos = document.createDocumentFragment();
+
+  grupos.appendChild(crearGrupoDeCambios(
+    'Más subieron',
+    mayoresCambios.subieron,
+    progresion.hayHistorialAnterior
+      ? 'Ningún ejercicio subió en este periodo.'
+      : 'Necesitas un periodo anterior con datos para comparar.'
+  ));
+  grupos.appendChild(crearGrupoDeCambios(
+    'Más bajaron',
+    mayoresCambios.bajaron,
+    progresion.hayHistorialAnterior
+      ? 'Ningún ejercicio bajó en este periodo.'
+      : 'Necesitas un periodo anterior con datos para comparar.'
+  ));
+
+  obtenerElemento('strengthMovers').replaceChildren(grupos);
 }
 
 function obtenerMejoresSeriesPorEjercicio() {
@@ -285,8 +398,131 @@ function obtenerMejoresSeriesPorEjercicio() {
   return mejoresSeries;
 }
 
-function pintarTablaDeRecords(configuracion) {
+// El cambio compara el mejor 1RM de cada bloque de periodo, no la marca de la
+// fila (que es la mejor del filtro entero); el title de la insignia lo aclara.
+function pintarCambioDelRecord(filaRecord, cambio) {
+  const insignia = filaRecord.querySelector('[data-field="change"]');
+  const valorCambio = filaRecord.querySelector('[data-field="change-value"]');
+
+  insignia.classList.remove('increase', 'decrease', 'neutral');
+
+  if (!cambio || cambio.estado === 'nuevo') {
+    insignia.classList.add('neutral');
+    valorCambio.textContent = '—';
+    insignia.title = 'Sin marca en el periodo anterior';
+    return;
+  }
+
+  if (cambio.estado === 'mantiene') {
+    insignia.classList.add('neutral');
+  } else {
+    insignia.classList.add(cambio.diferencia > 0 ? 'increase' : 'decrease');
+  }
+
+  valorCambio.textContent = crearTextoDelta(cambio);
+  insignia.title = 'Mejor 1RM del periodo: '
+    + formatearCarga(cambio.actual)
+    + ' · anterior: '
+    + formatearCarga(cambio.anterior);
+}
+
+// El escalonado sugiere orden; pasado un puñado de filas solo hace esperar.
+const ESCALONES_MAXIMOS = 8;
+const MILISEGUNDOS_POR_ESCALON = 34;
+
+let eventosRecordsConectados = false;
+
+function manejarClicEnRecords(evento) {
+  const boton = evento.target.closest('.link-cell[data-exercise]');
+
+  if (boton) {
+    abrirEjercicio(boton.dataset.exercise);
+  }
+}
+
+function crearContextoDeRecord(record) {
+  const palabraSerie = record.cantidadSeries === 1 ? 'serie' : 'series';
+  const palabraSesion = record.cantidadSesiones === 1 ? 'sesión' : 'sesiones';
+
+  return formatoFechaCompleta.format(record.fecha)
+    + ' · '
+    + record.repeticionesTotales
+    + ' reps en '
+    + record.cantidadSeries
+    + ' '
+    + palabraSerie
+    + ' y '
+    + record.cantidadSesiones
+    + ' '
+    + palabraSesion;
+}
+
+function crearFilaDeRecordDeReps(record) {
+  const elemento = clonarElementoDePlantilla('repRecordTemplate');
+  const etiquetaEsfuerzo = elemento.querySelector('[data-field="effort"]');
+
+  elemento.dataset.exercise = record.ejercicio;
+  elemento.querySelector('[data-field="exercise"]').textContent = record.ejercicio;
+  elemento.querySelector('[data-field="reps"]').textContent = String(record.repeticiones);
+  elemento.querySelector('[data-field="context"]').textContent =
+    crearContextoDeRecord(record);
+
+  if (record.esfuerzo) {
+    etiquetaEsfuerzo.textContent = 'RPE '
+      + formatoNumero.format(record.esfuerzo.promedio)
+      + ' · '
+      + record.esfuerzo.seriesConEsfuerzo
+      + '/'
+      + record.esfuerzo.seriesTotales;
+  } else {
+    etiquetaEsfuerzo.textContent = 'Sin RPE';
+    etiquetaEsfuerzo.classList.add('is-missing');
+  }
+
+  return elemento;
+}
+
+// Dominadas y fondos no tienen 1RM, así que la tabla de récords estimados los
+// dejaba fuera pese a ser de lo más repetido del historial.
+function pintarRecordsDeRepeticiones() {
+  const panel = obtenerElemento('repRecordsPanel');
+  const lista = obtenerElemento('repRecords');
+  const records = crearRecordsDeRepeticiones(estadoAplicacion.seriesFiltradas);
+
+  panel.hidden = records.length === 0;
+
+  if (records.length === 0) {
+    lista.replaceChildren();
+    return;
+  }
+
+  const elementos = document.createDocumentFragment();
+
+  records.forEach(function (record) {
+    elementos.appendChild(crearFilaDeRecordDeReps(record));
+  });
+
+  lista.replaceChildren(elementos);
+}
+
+function manejarClicEnRecordsDeReps(evento) {
+  const fila = evento.target.closest('.rep-record[data-exercise]');
+
+  if (fila) {
+    abrirEjercicio(fila.dataset.exercise);
+  }
+}
+
+function pintarTablaDeRecords(configuracion, progresion) {
   const tablaRecords = obtenerElemento('recordsTable');
+
+  if (!eventosRecordsConectados) {
+    tablaRecords.addEventListener('click', manejarClicEnRecords);
+    obtenerElemento('repRecords')
+      .addEventListener('click', manejarClicEnRecordsDeReps);
+    eventosRecordsConectados = true;
+  }
+
   const mejoresSeries = obtenerMejoresSeriesPorEjercicio();
   const recordsOrdenados = Array.from(mejoresSeries.entries());
 
@@ -302,6 +538,9 @@ function pintarTablaDeRecords(configuracion) {
     return;
   }
 
+  const cambiosPorEjercicio = new Map(progresion.ejercicios.map(function (ejercicio) {
+    return [ejercicio.ejercicio, ejercicio];
+  }));
   const claveUltimaSesion = obtenerClaveDeUltimaSesion(estadoAplicacion.sesionesFiltradas);
   const filasRecords = document.createDocumentFragment();
 
@@ -314,18 +553,30 @@ function pintarTablaDeRecords(configuracion) {
 
     if (configuracion.animarEntrada) {
       filaRecord.classList.add('record-row-enter');
-      filaRecord.style.setProperty('--row-delay', indiceRecord * 40 + 'ms');
-    } else {
-      filaRecord.classList.add('no-entry-animation');
+      filaRecord.style.setProperty(
+        '--row-delay',
+        Math.min(indiceRecord, ESCALONES_MAXIMOS) * MILISEGUNDOS_POR_ESCALON + 'ms'
+      );
     }
+
     filaRecord.classList.toggle('record-new', esRecordReciente);
+    filaRecord.classList.toggle(
+      'record-new-flash',
+      esRecordReciente && configuracion.animarDatosNuevos
+    );
     filaRecord.querySelector('.record-badge').hidden = !esRecordReciente;
     filaRecord.querySelector('.record-badge-best').hidden = indiceRecord !== 0;
-    filaRecord.querySelector('[data-field="exercise"]').textContent = nombreEjercicio;
-    filaRecord.querySelector('[data-field="set"]').textContent = formatoNumero
-      .format(mejorSerie.pesoLibras) + ' lb × ' + mejorSerie.repeticiones;
-    filaRecord.querySelector('[data-field="estimated-1rm"]').textContent = formatoNumero
-      .format(calcular1RMEstimado(mejorSerie)) + ' lb';
+    const botonEjercicio = filaRecord.querySelector('[data-field="exercise"]');
+
+    botonEjercicio.textContent = nombreEjercicio;
+    botonEjercicio.dataset.exercise = nombreEjercicio;
+    filaRecord.querySelector('[data-field="set"]').textContent = formatearCarga(
+      mejorSerie.pesoLibras
+    ) + ' × ' + mejorSerie.repeticiones;
+    filaRecord.querySelector('[data-field="estimated-1rm"]').textContent = formatearCarga(
+      calcular1RMEstimado(mejorSerie)
+    );
+    pintarCambioDelRecord(filaRecord, cambiosPorEjercicio.get(nombreEjercicio));
     filaRecord.querySelector('[data-field="date"]').textContent = formatoFechaCompleta
       .format(mejorSerie.inicio);
     filasRecords.appendChild(filaRecord);
@@ -335,9 +586,17 @@ function pintarTablaDeRecords(configuracion) {
 }
 
 export function pintarProgreso(configuracionOriginal) {
-  const configuracion = configuracionOriginal || { animarEntrada: true };
+  const configuracion = configuracionOriginal
+    || { animarEntrada: true, animarDatosNuevos: true };
+  const progresion = crearProgresionFuerza(
+    estadoAplicacion.sesiones,
+    estadoAplicacion.fechaMasReciente,
+    estadoAplicacion.periodoSeleccionado
+  );
 
+  pintarProgresionFuerza(progresion);
   pintarCalendarioActividad(configuracion);
   pintarPatronesDeEntrenamiento();
-  pintarTablaDeRecords(configuracion);
+  pintarRecordsDeRepeticiones();
+  pintarTablaDeRecords(configuracion, progresion);
 }

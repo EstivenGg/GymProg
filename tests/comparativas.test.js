@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  crearComparativasResumen,
-  crearSeriesResumen
-} from '../src/comparativas.js';
+import { crearComparativasResumen } from '../src/comparativas.js';
 
 function crearSesion(fecha, peso, repeticiones, duracionMinutos) {
   const inicio = new Date(fecha + 'T10:00:00');
@@ -57,6 +54,10 @@ test('divide todo el historial en dos mitades temporales', function () {
   );
 
   assert.equal(resultado.descripcion, 'vs. mitad anterior');
+  assert.equal(
+    resultado.comparadoCon,
+    'Comparado con la mitad anterior del historial'
+  );
   assert.equal(resultado.hayHistorialAnterior, true);
   assert.equal(resultado.actual.entrenamientos, 2);
   assert.equal(resultado.anterior.entrenamientos, 2);
@@ -72,21 +73,8 @@ test('no inventa una comparacion cuando no existe historial anterior', function 
 
   assert.equal(resultado.hayHistorialAnterior, false);
   assert.equal(resultado.anterior.entrenamientos, 0);
-});
-
-test('genera series compactas para las cuatro sparklines', function () {
-  const sesiones = [
-    crearSesion('2026-01-07', 100, 5, 30),
-    crearSesion('2026-01-14', 120, 5, 45)
-  ];
-  const series = crearSeriesResumen(
-    sesiones,
-    new Date('2026-01-14T10:00:00')
+  assert.equal(
+    resultado.comparadoCon,
+    'Comparado con el periodo anterior equivalente'
   );
-
-  assert.equal(series.entrenamientos.length, 8);
-  assert.equal(series.racha.length, 8);
-  assert.deepEqual(series.volumen, [500, 600]);
-  assert.deepEqual(series.duracion, [30, 45]);
-  assert.deepEqual(series.racha.slice(-2), [1, 2]);
 });

@@ -2,8 +2,17 @@ node_modules/
 dist/
 
 # Datos personales (CSV con información de entrenamiento/medidas), incluidos
-# los usados por la app en public/data/.
+# los usados por la app en public/data/. Nunca deben publicarse: el tablero
+# sirve para importarlos desde el navegador, no para alojarlos.
 *.csv
 
-# Archivo antiguo: no se vuelve a generar.
-Hevy-Progress-Compartir.zip
+# Bocetos de diseño: pesan más que todo el código y no hacen falta para compilar.
+design/
+
+# Salidas locales y ruido del sistema.
+*.zip
+.DS_Store
+Thumbs.db
+*.log
+.vscode/
+.idea/

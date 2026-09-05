@@ -59,6 +59,11 @@ export function crearResumenConstancia(
   const porcentajeActivo = semanasConDatos.length > 0
     ? Math.round(semanasActivas.length / semanasConDatos.length * 100)
     : 0;
+  // Semanas activas y semanas en meta son cosas distintas: una semana con un
+  // solo entrenamiento cuenta como activa pero casi nunca alcanza la meta.
+  const semanasEnMeta = semanasConDatos.filter(function (semana) {
+    return semana.cantidadSesiones >= meta;
+  });
   const bloqueActual = semanas.slice(-4);
   const bloqueAnterior = semanas.slice(-8, -4);
   const puedeComparar = tieneCoberturaCompleta(bloqueActual)
@@ -70,6 +75,7 @@ export function crearResumenConstancia(
     semanas: semanas,
     semanasConDatos: semanasConDatos.length,
     semanasActivas: semanasActivas.length,
+    semanasEnMeta: semanasEnMeta.length,
     porcentajeActivo: porcentajeActivo,
     metaSesiones: meta,
     sesionesSemanaActual: semanas[semanas.length - 1].cantidadSesiones,

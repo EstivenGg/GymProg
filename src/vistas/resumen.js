@@ -1,16 +1,31 @@
 import {
+  convertirLibrasAUnidad,
   estadoAplicacion,
+  formatearCarga,
+  formatoFechaCompleta,
   formatoFechaCorta,
   formatoNumero,
   formatoNumeroCompacto,
-  MILISEGUNDOS_POR_DIA
+  MILISEGUNDOS_POR_DIA,
+  obtenerUnidadPeso
 } from '../configuracion.js';
 import {
-  crearComparativasResumen,
-  crearSeriesResumen
-} from '../comparativas.js';
+  agruparVolumen,
+  contarSesionesSinCarga,
+  filtrarSesionesPorRutina,
+  obtenerAgrupacion,
+  RUTINA_TODAS
+} from '../agrupacion-volumen.js';
+import { crearComparativasResumen } from '../comparativas.js';
 import { crearResumenConstancia } from '../constancia.js';
 import { pintarGraficaLinea } from '../grafica-linea.js';
+import { abrirSesion } from './sesiones.js';
+import {
+  contarSesionesPorRutina,
+  crearVariablesDeRutina,
+  VARIABLE_OTRAS_RUTINAS
+} from '../rutinas.js';
+import { establecerValorSelector } from '../selector-personalizado.js';
 import {
   calcularMetricasSesion,
   calcularRachaSemanal,
@@ -21,11 +36,28 @@ import {
 import {
   animarConteo,
   clonarElementoDePlantilla,
+  crearElemento,
   crearEstadoVacio,
+  describirRangoDeFechas,
+  leerVariableCSS,
   obtenerElemento,
   obtenerInicioDelDia,
   sumarDias
 } from '../utilidades.js';
+
+let metricaCorporalSeleccionada = 'weight';
+
+const CLAVE_AGRUPACION_VOLUMEN = 'hevy-progress-volume-group';
+const formatoMesEje = new Intl.DateTimeFormat('es-CO', {
+  month: 'short',
+  year: '2-digit'
+});
+const formatoMesCompleto = new Intl.DateTimeFormat('es-CO', {
+  month: 'long',
+  year: 'numeric'
+});
+let agrupacionVolumenSeleccionada = null;
+let rutinaVolumenSeleccionada = RUTINA_TODAS;
 
 function crearTextoDuracion(duracionMinutos) {
   if (duracionMinutos < 60) {
@@ -46,8 +78,8 @@ function crearTextoDiferenciaCantidad(cantidad, unidadSingular, unidadPlural, au
 }
 
 function crearTextoDiferenciaVolumen(diferencia, aumenta) {
-  return formatoNumeroCompacto.format(diferencia)
-    + ' lb '
+  return formatearCarga(diferencia, true)
+    + ' '
     + (aumenta ? 'más' : 'menos');
 }
 
@@ -57,6 +89,8 @@ function crearTextoDiferenciaDuracion(diferencia, aumenta) {
     + (aumenta ? 'más' : 'menos');
 }
 
+// La insignia solo muestra el porcentaje; el detalle en palabras vive en el
+// title, y el periodo de comparacion se enuncia una sola vez para toda la tira.
 function pintarComparacion(
   idElemento,
   valorActual,
@@ -65,110 +99,56 @@ function pintarComparacion(
   descripcionPeriodo,
   crearTextoDiferencia
 ) {
-  const elemento = obtenerElemento(idElemento);
-  const insignia = elemento.querySelector('[data-field="trend"]');
-  const detalle = elemento.querySelector('[data-field="comparison"]');
+  const insignia = obtenerElemento(idElemento);
+  const valor = insignia.querySelector('[data-field="trend"]');
 
-  elemento.classList.remove('positive', 'negative', 'neutral');
+  insignia.classList.remove('increase', 'decrease', 'neutral');
 
   if (!hayHistorialAnterior) {
-    elemento.classList.add('neutral');
-    insignia.textContent = '—';
-    detalle.textContent = 'Sin historial anterior';
-    elemento.removeAttribute('title');
+    insignia.classList.add('neutral');
+    valor.textContent = '—';
+    insignia.title = 'Sin historial anterior';
     return;
   }
 
   const diferencia = valorActual - valorAnterior;
 
   if (diferencia === 0) {
-    elemento.classList.add('neutral');
-    insignia.textContent = '0%';
-    detalle.textContent = 'Sin cambio · ' + descripcionPeriodo;
-  } else if (valorAnterior === 0) {
-    elemento.classList.add('positive');
-    insignia.textContent = 'NUEVO';
-    detalle.textContent = crearTextoDiferencia(
-      Math.abs(diferencia),
-      diferencia > 0
-    ) + ' · ' + descripcionPeriodo;
-  } else {
-    const porcentaje = Math.round(Math.abs(diferencia / valorAnterior) * 100);
-    const aumenta = diferencia > 0;
-
-    elemento.classList.add(aumenta ? 'positive' : 'negative');
-    insignia.textContent = (aumenta ? '+' : '-') + porcentaje + '%';
-    detalle.textContent = crearTextoDiferencia(
-      Math.abs(diferencia),
-      aumenta
-    ) + ' · ' + descripcionPeriodo;
+    insignia.classList.add('neutral');
+    valor.textContent = '0%';
+    insignia.title = 'Sin cambio · ' + descripcionPeriodo;
+    return;
   }
 
-  elemento.title = insignia.textContent + ' · ' + detalle.textContent;
-}
+  const aumenta = diferencia > 0;
+  const detalle = crearTextoDiferencia(Math.abs(diferencia), aumenta)
+    + ' · '
+    + descripcionPeriodo;
 
-function crearGeometriaSparkline(valoresOriginales) {
-  let valores = valoresOriginales.filter(Number.isFinite);
-
-  if (valores.length === 0) {
-    valores = [0, 0];
-  } else if (valores.length === 1) {
-    valores = [valores[0], valores[0]];
+  if (valorAnterior === 0) {
+    insignia.classList.add('increase');
+    valor.textContent = 'NUEVO';
+    insignia.title = 'Nuevo · ' + detalle;
+    return;
   }
 
-  const minimo = Math.min.apply(null, valores);
-  const maximo = Math.max.apply(null, valores);
-  const rango = maximo - minimo;
-  const puntos = valores.map(function (valor, indice) {
-    const x = 3 + indice * 66 / (valores.length - 1);
-    const proporcion = rango === 0 ? 0.5 : (valor - minimo) / rango;
-    const y = 30 - proporcion * 24;
+  const porcentaje = Math.round(Math.abs(diferencia / valorAnterior) * 100);
 
-    return { x: x, y: y };
-  });
-  const comandosLinea = puntos.map(function (punto, indice) {
-    return (indice === 0 ? 'M ' : 'L ') + punto.x + ' ' + punto.y;
-  }).join(' ');
-  const ultimoPunto = puntos[puntos.length - 1];
-
-  return {
-    linea: comandosLinea,
-    area: comandosLinea + ' L ' + ultimoPunto.x + ' 33 L ' + puntos[0].x + ' 33 Z',
-    ultimoPunto: ultimoPunto
-  };
+  insignia.classList.add(aumenta ? 'increase' : 'decrease');
+  valor.textContent = (aumenta ? '+' : '-') + porcentaje + '%';
+  insignia.title = valor.textContent + ' · ' + detalle;
 }
 
-function pintarSparkline(idElemento, valores, animar) {
-  const sparkline = obtenerElemento(idElemento);
-  const geometria = crearGeometriaSparkline(valores);
-
-  const linea = sparkline.querySelector('.sparkline-line');
-  linea.setAttribute('d', geometria.linea);
-  linea.setAttribute('pathLength', '1');
-  sparkline.querySelector('.sparkline-area').setAttribute('d', geometria.area);
-
-  const punto = sparkline.querySelector('.sparkline-point');
-  punto.setAttribute('cx', geometria.ultimoPunto.x);
-  punto.setAttribute('cy', geometria.ultimoPunto.y);
-
-  sparkline.classList.remove('is-updated');
-
-  if (animar) {
-    sparkline.getBoundingClientRect();
-    sparkline.classList.add('is-updated');
-  }
-}
-
-function pintarComparativasYSeries(sesiones, animar) {
+function pintarComparativas() {
   const comparativas = crearComparativasResumen(
     estadoAplicacion.sesiones,
     estadoAplicacion.fechaMasReciente,
     estadoAplicacion.periodoSeleccionado
   );
-  const series = crearSeriesResumen(
-    sesiones,
-    estadoAplicacion.fechaMasReciente
-  );
+
+  obtenerElemento('comparisonPeriod').textContent = comparativas.hayHistorialAnterior
+    ? comparativas.comparadoCon
+    : 'Sin historial anterior para comparar';
 
   pintarComparacion(
     'statWorkoutsComparison',
@@ -201,62 +181,139 @@ function pintarComparativasYSeries(sesiones, animar) {
     comparativas.descripcion,
     crearTextoDiferenciaDuracion
   );
-  pintarComparacion(
-    'statStreakComparison',
-    comparativas.actual.racha,
-    comparativas.anterior.racha,
-    comparativas.hayHistorialAnterior,
-    comparativas.descripcion,
-    function (diferencia, aumenta) {
-      return crearTextoDiferenciaCantidad(
-        diferencia,
-        'semana',
-        'semanas',
-        aumenta
-      );
-    }
-  );
-
-  pintarSparkline('statWorkoutsSparkline', series.entrenamientos, animar);
-  pintarSparkline('statVolumeSparkline', series.volumen, animar);
-  pintarSparkline('statTimeSparkline', series.duracion, animar);
-  pintarSparkline('statStreakSparkline', series.racha, animar);
 }
 
-function crearPuntosDeVolumen(sesiones) {
-  return sesiones.map(function (sesion) {
-    const metricasSesion = calcularMetricasSesion(sesion);
+function obtenerAgrupacionVolumen() {
+  if (agrupacionVolumenSeleccionada) {
+    return agrupacionVolumenSeleccionada;
+  }
 
-    return {
-      fecha: sesion.inicio,
-      valor: metricasSesion.volumenLibras
-    };
-  }).filter(function (punto) {
-    return punto.valor > 0;
+  const guardada = localStorage.getItem(CLAVE_AGRUPACION_VOLUMEN);
+
+  if (obtenerAgrupacion(guardada)) {
+    agrupacionVolumenSeleccionada = guardada;
+    return agrupacionVolumenSeleccionada;
+  }
+
+  // En una pantalla estrecha, un año de entrenamientos son casi doscientas
+  // barras de un par de píxeles. La vista semanal es el punto de partida útil.
+  const pantallaEstrecha = matchMedia('(max-width: 700px)').matches;
+
+  agrupacionVolumenSeleccionada = pantallaEstrecha ? 'semana' : 'sesion';
+
+  return agrupacionVolumenSeleccionada;
+}
+
+function obtenerRutinaVolumen() {
+  const existeLaRutina = estadoAplicacion.sesiones.some(function (sesion) {
+    return sesion.titulo === rutinaVolumenSeleccionada;
+  });
+
+  if (rutinaVolumenSeleccionada !== RUTINA_TODAS && !existeLaRutina) {
+    rutinaVolumenSeleccionada = RUTINA_TODAS;
+  }
+
+  return rutinaVolumenSeleccionada;
+}
+
+// El color se resuelve contra el historial completo: la misma rutina se pinta
+// igual aquí que en el listado de sesiones, sin importar el filtro de periodo.
+function obtenerColoresDeRutinaResueltos() {
+  const variablesPorRutina = crearVariablesDeRutina(estadoAplicacion.sesiones);
+  const coloresPorRutina = new Map();
+
+  variablesPorRutina.forEach(function (variable, titulo) {
+    coloresPorRutina.set(titulo, leerVariableCSS(variable));
+  });
+
+  return coloresPorRutina;
+}
+
+function describirRutinasDelBloque(punto) {
+  if (punto.rutinas.length <= 1) {
+    return '';
+  }
+
+  return ' · ' + punto.rutinas.join(', ');
+}
+
+function crearDetalleDeBloque(punto) {
+  const palabraSesion = punto.cantidadSesiones === 1 ? 'sesión' : 'sesiones';
+
+  return punto.cantidadSesiones
+    + ' '
+    + palabraSesion
+    + describirRutinasDelBloque(punto);
+}
+
+function decorarPuntoDeVolumen(punto, agrupacion, coloresPorRutina, colorearPorRutina) {
+  const decorado = {
+    fecha: punto.fecha,
+    valor: convertirLibrasAUnidad(punto.volumenLibras),
+    color: colorearPorRutina && punto.rutina
+      ? coloresPorRutina.get(punto.rutina)
+      : null,
+    claveSesion: punto.claveSesion,
+    seleccionable: Boolean(punto.claveSesion)
+  };
+
+  if (agrupacion === 'sesion') {
+    decorado.detalle = punto.rutina;
+    return decorado;
+  }
+
+  if (agrupacion === 'mes') {
+    decorado.titulo = formatoMesCompleto.format(punto.fecha);
+    decorado.etiquetaEje = formatoMesEje.format(punto.fecha);
+    decorado.detalle = crearDetalleDeBloque(punto);
+    return decorado;
+  }
+
+  decorado.titulo = 'Semana del ' + describirRangoDeFechas(punto.fecha, punto.fin);
+  decorado.detalle = crearDetalleDeBloque(punto);
+
+  return decorado;
+}
+
+// Al agrupar, una semana suelta de una sola rutina heredaría su color y saldría
+// pintada de azul entre barras naranjas, sin nada en la leyenda que lo explique.
+// Por eso el color por rutina solo se aplica cuando todas las barras lo pueden
+// tener: en la vista por sesión, o con una rutina ya filtrada.
+function crearPuntosDeVolumen(sesiones, agrupacion, rutina) {
+  const coloresPorRutina = obtenerColoresDeRutinaResueltos();
+  const colorearPorRutina = agrupacion === 'sesion' || rutina !== RUTINA_TODAS;
+
+  return agruparVolumen(sesiones, agrupacion).map(function (punto) {
+    return decorarPuntoDeVolumen(
+      punto,
+      agrupacion,
+      coloresPorRutina,
+      colorearPorRutina
+    );
   });
 }
 
-function animarEntradaTarjetasResumen(animar) {
-  const rejillaTarjetas = obtenerElemento('statGrid');
-  const tarjetas = rejillaTarjetas.querySelectorAll('.stat-card');
+function animarEntradaResumen(animar) {
+  const rejilla = obtenerElemento('resumenGrid');
+  const paneles = rejilla.querySelectorAll('.panel');
 
-  tarjetas.forEach(function (tarjeta) {
-    tarjeta.classList.remove('is-entering');
+  paneles.forEach(function (panel) {
+    panel.classList.remove('is-entering');
   });
 
   if (!animar) {
     return;
   }
 
-  rejillaTarjetas.getBoundingClientRect();
+  rejilla.getBoundingClientRect();
 
-  tarjetas.forEach(function (tarjeta, indiceTarjeta) {
-    tarjeta.style.setProperty('--stagger-delay', indiceTarjeta * 40 + 'ms');
-    tarjeta.classList.add('is-entering');
+  paneles.forEach(function (panel, indicePanel) {
+    panel.style.setProperty('--stagger-delay', Math.min(indicePanel, 8) * 38 + 'ms');
+    panel.classList.add('is-entering');
   });
 }
 
-function pintarTarjetasResumen(
+function pintarMetricasResumen(
   sesiones,
   seriesEfectivas,
   volumenTotal,
@@ -278,14 +335,21 @@ function pintarTarjetasResumen(
 
   animarConteo(obtenerElemento('statVolume'), volumenTotal, {
     animar: configuracion.animarConteos,
-    sufijo: ' lb',
+    sufijo: ' ' + obtenerUnidadPeso(),
     formatear: function (valor) {
-      return formatoNumeroCompacto.format(valor);
+      return formatoNumeroCompacto.format(convertirLibrasAUnidad(valor));
     }
   });
 
-  obtenerElemento('statVolumeSub').textContent = seriesEfectivas.length
-    + ' series efectivas';
+  const seriesConCarga = seriesEfectivas.filter(function (serie) {
+    return Number.isFinite(serie.pesoLibras)
+      && serie.pesoLibras > 0
+      && Number.isFinite(serie.repeticiones)
+      && serie.repeticiones > 0;
+  });
+
+  obtenerElemento('statVolumeSub').textContent = seriesConCarga.length
+    + ' series con carga registrada';
 
   obtenerElemento('statTime').textContent = crearTextoDuracion(duracionTotal);
 
@@ -307,9 +371,9 @@ function pintarTarjetasResumen(
     obtenerElemento('statStreakSub').textContent = 'Semanas consecutivas';
   }
 
-  pintarComparativasYSeries(sesiones, configuracion.animarCambios);
+  pintarComparativas();
 
-  animarEntradaTarjetasResumen(configuracion.animarEntrada);
+  animarEntradaResumen(configuracion.animarEntrada);
 }
 
 function pintarRangoDeDatos(primeraFecha, ultimaFecha) {
@@ -318,32 +382,216 @@ function pintarRangoDeDatos(primeraFecha, ultimaFecha) {
     return;
   }
 
-  obtenerElemento('dataRange').textContent = formatoFechaCorta.format(primeraFecha)
-    + ' — '
-    + formatoFechaCorta.format(ultimaFecha);
+  obtenerElemento('dataRange').textContent = describirRangoDeFechas(
+    primeraFecha,
+    ultimaFecha
+  );
 }
 
-function pintarGraficaDeVolumen(sesiones, animar) {
-  const sesionesSinVolumen = sesiones.filter(function (sesion) {
-    return calcularMetricasSesion(sesion).volumenLibras <= 0;
+// El filtro no cuenta hacia atrás desde hoy sino desde el último dato del
+// archivo, así que esa fecha tiene que estar a la vista.
+function pintarReferenciaDePeriodo() {
+  const referencia = obtenerElemento('dataAnchor');
+
+  if (estadoAplicacion.periodoSeleccionado === 'all') {
+    referencia.hidden = true;
+    referencia.textContent = '';
+    return;
+  }
+
+  const opcionActiva = obtenerElemento('periodSelect').selectedOptions[0];
+  const etiquetaPeriodo = opcionActiva ? opcionActiva.textContent : 'El periodo';
+
+  referencia.hidden = false;
+  referencia.textContent = '«'
+    + etiquetaPeriodo
+    + '» cuenta hacia atrás desde tu último dato: '
+    + formatoFechaCompleta.format(estadoAplicacion.fechaMasReciente);
+}
+
+function pintarCalidadDeDatos() {
+  const sesiones = estadoAplicacion.sesiones;
+  const mediciones = estadoAplicacion.mediciones;
+  const indicador = obtenerElemento('dataQuality');
+
+  if (sesiones.length === 0) {
+    indicador.hidden = true;
+    indicador.textContent = '';
+    return;
+  }
+
+  const sesionesConCarga = sesiones.filter(function (sesion) {
+    return calcularMetricasSesion(sesion).volumenLibras > 0;
   }).length;
+  const coberturaCarga = Math.round(sesionesConCarga / sesiones.length * 100);
+  const palabraEntrenamiento = sesiones.length === 1
+    ? 'entrenamiento'
+    : 'entrenamientos';
+  const palabraMedicion = mediciones.length === 1 ? 'medición' : 'mediciones';
+
+  indicador.textContent = sesiones.length
+    + ' '
+    + palabraEntrenamiento
+    + ' · '
+    + mediciones.length
+    + ' '
+    + palabraMedicion
+    + ' · carga registrada en '
+    + coberturaCarga
+    + '% de las sesiones';
+  indicador.hidden = false;
+}
+
+function actualizarSelectorDeRutinas() {
+  const selectorRutinas = obtenerElemento('routineSelect');
+  const rutinaActiva = obtenerRutinaVolumen();
+  const opciones = document.createDocumentFragment();
+  const opcionTodas = document.createElement('option');
+
+  opcionTodas.value = RUTINA_TODAS;
+  opcionTodas.textContent = 'Todas las rutinas';
+  opciones.appendChild(opcionTodas);
+
+  contarSesionesPorRutina(estadoAplicacion.sesiones).forEach(function (rutina) {
+    const opcionRutina = document.createElement('option');
+
+    opcionRutina.value = rutina.titulo;
+    opcionRutina.textContent = rutina.titulo + ' (' + rutina.cantidad + ')';
+    opciones.appendChild(opcionRutina);
+  });
+
+  selectorRutinas.replaceChildren(opciones);
+  selectorRutinas.value = rutinaActiva;
+  establecerValorSelector('routineSelect', rutinaActiva);
+}
+
+function actualizarBotonesDeAgrupacion() {
+  const agrupacionActiva = obtenerAgrupacionVolumen();
+
+  document.querySelectorAll('[data-volume-group]').forEach(function (boton) {
+    const estaActivo = boton.dataset.volumeGroup === agrupacionActiva;
+
+    boton.classList.toggle('active', estaActivo);
+    boton.setAttribute('aria-pressed', String(estaActivo));
+  });
+
+  obtenerElemento('volumeGroupLabel').textContent =
+    obtenerAgrupacion(agrupacionActiva).descripcion;
+}
+
+function crearChipDeLeyenda(texto, color) {
+  const chip = crearElemento('span', 'volume-legend-chip');
+  const muestra = crearElemento('i', '');
+
+  muestra.style.background = color;
+  chip.append(muestra, crearElemento('span', '', texto));
+
+  return chip;
+}
+
+// La leyenda solo tiene sentido cuando cada barra puede ser de una rutina
+// distinta; al filtrar o al agrupar, todas comparten color y sobra.
+function pintarLeyendaDeVolumen(agrupacion, rutina) {
+  const leyenda = obtenerElemento('volumeLegend');
+  const coloresPorRutina = obtenerColoresDeRutinaResueltos();
+
+  if (agrupacion !== 'sesion' || rutina !== RUTINA_TODAS) {
+    const colorUnico = rutina === RUTINA_TODAS
+      ? leerVariableCSS('--orange')
+      : coloresPorRutina.get(rutina);
+
+    leyenda.replaceChildren(crearChipDeLeyenda('Volumen', colorUnico));
+    return;
+  }
+
+  const rutinasDelHistorial = contarSesionesPorRutina(estadoAplicacion.sesiones);
+  const chips = document.createDocumentFragment();
+  let hayRutinasSinColorPropio = false;
+
+  rutinasDelHistorial.forEach(function (rutinaDelHistorial) {
+    const color = coloresPorRutina.get(rutinaDelHistorial.titulo);
+
+    if (color === leerVariableCSS(VARIABLE_OTRAS_RUTINAS)) {
+      hayRutinasSinColorPropio = true;
+      return;
+    }
+
+    chips.appendChild(crearChipDeLeyenda(rutinaDelHistorial.titulo, color));
+  });
+
+  if (hayRutinasSinColorPropio) {
+    chips.appendChild(crearChipDeLeyenda(
+      'Otras rutinas',
+      leerVariableCSS(VARIABLE_OTRAS_RUTINAS)
+    ));
+  }
+
+  leyenda.replaceChildren(chips);
+}
+
+function pintarNotaDeVolumen(sesionesDeLaRutina) {
+  const sesionesSinVolumen = contarSesionesSinCarga(sesionesDeLaRutina);
   const nota = obtenerElemento('volumeChartNote');
 
   nota.hidden = sesionesSinVolumen === 0;
   nota.textContent = sesionesSinVolumen === 1
     ? '1 sesión sin carga no graficada'
     : sesionesSinVolumen + ' sesiones sin carga no graficadas';
+}
+
+function pintarGraficaDeVolumen(sesiones, animar) {
+  const agrupacion = obtenerAgrupacionVolumen();
+  const rutina = obtenerRutinaVolumen();
+  const sesionesDeLaRutina = filtrarSesionesPorRutina(sesiones, rutina);
+  const descripcion = obtenerAgrupacion(agrupacion).descripcion;
+
+  actualizarSelectorDeRutinas();
+  actualizarBotonesDeAgrupacion();
+  pintarLeyendaDeVolumen(agrupacion, rutina);
+  pintarNotaDeVolumen(sesionesDeLaRutina);
+  obtenerElemento('volumeUnitLabel').textContent = obtenerUnidadPeso();
+
+  const mensajeVacio = rutina === RUTINA_TODAS
+    ? 'No hay sesiones con volumen de peso en este periodo.'
+    : 'No hay sesiones de ' + rutina + ' con volumen de peso en este periodo.';
 
   pintarGraficaLinea(
     obtenerElemento('volumeChart'),
-    crearPuntosDeVolumen(sesiones),
+    crearPuntosDeVolumen(sesionesDeLaRutina, agrupacion, rutina),
     {
+      alSeleccionarPunto: function (punto) {
+        abrirSesion(punto.claveSesion);
+      },
       animar: animar,
       tipo: 'bar',
-      sufijoValor: ' lb',
-      mensajeVacio: 'No hay sesiones con volumen de peso en este periodo.'
+      sufijoValor: ' ' + obtenerUnidadPeso(),
+      tituloAccesible: 'Volumen con carga ' + descripcion,
+      mensajeVacio: mensajeVacio
     }
   );
+}
+
+function repintarVolumen() {
+  pintarGraficaDeVolumen(estadoAplicacion.sesionesFiltradas, true);
+}
+
+export function seleccionarAgrupacionVolumen(clave) {
+  if (!obtenerAgrupacion(clave) || clave === obtenerAgrupacionVolumen()) {
+    return;
+  }
+
+  agrupacionVolumenSeleccionada = clave;
+  localStorage.setItem(CLAVE_AGRUPACION_VOLUMEN, clave);
+  repintarVolumen();
+}
+
+export function seleccionarRutinaVolumen(rutina) {
+  if (rutina === obtenerRutinaVolumen()) {
+    return;
+  }
+
+  rutinaVolumenSeleccionada = rutina || RUTINA_TODAS;
+  repintarVolumen();
 }
 
 function crearDescripcionSemana(semana) {
@@ -383,7 +631,9 @@ function crearBarrasDeSemanas(semanas) {
     barraDeSemana.style.height = '0%';
     barraDeSemana.dataset.targetHeight = alturaPorcentaje + '%';
     barraDeSemana.dataset.label = descripcion;
-    barraDeSemana.setAttribute('aria-label', descripcion);
+    const graficoSemana = barraDeSemana.querySelector('svg');
+    graficoSemana.setAttribute('aria-label', descripcion);
+    graficoSemana.querySelector('title').textContent = descripcion;
     barrasDeSemanas.appendChild(barraDeSemana);
   });
 
@@ -439,38 +689,48 @@ function pintarMetaSemanal(resumen, animar) {
   const meta = resumen.metaSesiones;
   const faltantes = Math.max(0, meta - cantidad);
 
-  obtenerElemento('weeklyGoalValue').textContent = cantidad
-    + ' de '
-    + meta
-    + ' sesiones';
-  obtenerElemento('weeklyGoalCopy').textContent = faltantes === 0
+  obtenerElemento('weeklyGoalValue').textContent = cantidad + ' de';
+
+  const estadoUltimaSemana = faltantes === 0
     ? 'Meta alcanzada en la última semana registrada'
     : 'Faltan ' + faltantes + ' para la meta de la última semana registrada';
 
+  obtenerElemento('weeklyGoalCopy').textContent = estadoUltimaSemana
+    + ' · '
+    + resumen.semanasEnMeta
+    + ' de '
+    + resumen.semanasConDatos
+    + ' '
+    + (resumen.semanasConDatos === 1 ? 'semana llegó' : 'semanas llegaron')
+    + ' a la meta';
+
   const pista = obtenerElemento('weeklyGoalTrack');
-  pista.setAttribute('aria-valuenow', String(Math.min(cantidad, meta)));
+  const valorProgreso = Math.min(cantidad, meta);
+  pista.max = meta;
   pista.setAttribute(
     'aria-valuetext',
     cantidad + ' de ' + meta + ' sesiones completadas'
   );
-  const relleno = obtenerElemento('weeklyGoalFill');
+
   if (animar) {
-    relleno.style.width = '0%';
-    relleno.getBoundingClientRect();
+    pista.value = 0;
+    pista.getBoundingClientRect();
 
     requestAnimationFrame(function () {
-      relleno.style.width = resumen.progresoMeta + '%';
+      pista.value = valorProgreso;
     });
   } else {
-    relleno.style.width = resumen.progresoMeta + '%';
+    pista.value = valorProgreso;
   }
 }
 
 function pintarConstancia(animar) {
+  const metaSemanal = Number(obtenerElemento('weeklyGoalInput').value);
   const resumen = crearResumenConstancia(
     estadoAplicacion.sesiones,
     estadoAplicacion.fechaMasReciente,
-    12
+    12,
+    metaSemanal
   );
 
   obtenerElemento('consistencyValue').textContent = resumen.porcentajeActivo + '%';
@@ -481,7 +741,7 @@ function pintarConstancia(animar) {
     obtenerElemento('consistencyCopy').textContent = resumen.semanasActivas
       + ' de '
       + resumen.semanasConDatos
-      + ' semanas con datos';
+      + ' semanas con al menos 1 entrenamiento';
   }
 
   pintarMetaSemanal(resumen, animar);
@@ -521,20 +781,20 @@ function obtenerMedicionesDelPeriodo() {
   });
 }
 
-function pintarCambioDePeso(puntosPeso, animar) {
+function pintarCambioCorporal(puntos, unidad, animar) {
   const etiquetaCambio = obtenerElemento('weightDelta');
   const textoAnterior = etiquetaCambio.textContent;
   let textoCambio = 'Sin registros';
 
-  if (puntosPeso.length === 1) {
-    textoCambio = formatoNumero.format(puntosPeso[0].valor) + ' lb';
-  } else if (puntosPeso.length > 1) {
-    const primerPeso = puntosPeso[0].valor;
-    const ultimoPeso = puntosPeso[puntosPeso.length - 1].valor;
-    const diferenciaPeso = ultimoPeso - primerPeso;
-    const signoDiferencia = diferenciaPeso > 0 ? '+' : '';
+  if (puntos.length === 1) {
+    textoCambio = formatoNumero.format(puntos[0].valor) + unidad;
+  } else if (puntos.length > 1) {
+    const primerValor = puntos[0].valor;
+    const ultimoValor = puntos[puntos.length - 1].valor;
+    const diferencia = ultimoValor - primerValor;
+    const signoDiferencia = diferencia > 0 ? '+' : '';
 
-    textoCambio = signoDiferencia + formatoNumero.format(diferenciaPeso) + ' lb';
+    textoCambio = signoDiferencia + formatoNumero.format(diferencia) + unidad;
   }
 
   etiquetaCambio.textContent = textoCambio;
@@ -548,32 +808,140 @@ function pintarCambioDePeso(puntosPeso, animar) {
   }
 }
 
-function pintarGraficaPeso(animarGrafica, animarCambios) {
-  const medicionesDelPeriodo = obtenerMedicionesDelPeriodo();
-
-  const puntosPeso = medicionesDelPeriodo
-    .filter(function (medicion) {
+function actualizarSelectorCorporal(medicionesDelPeriodo) {
+  const disponibilidad = {
+    weight: medicionesDelPeriodo.some(function (medicion) {
       return medicion.pesoLibras !== null;
+    }),
+    fat: medicionesDelPeriodo.some(function (medicion) {
+      return medicion.porcentajeGrasa !== null;
+    })
+  };
+
+  if (!disponibilidad[metricaCorporalSeleccionada]) {
+    if (disponibilidad.weight) {
+      metricaCorporalSeleccionada = 'weight';
+    } else if (disponibilidad.fat) {
+      metricaCorporalSeleccionada = 'fat';
+    }
+  }
+
+  document.querySelectorAll('[data-body-metric]').forEach(function (boton) {
+    const metricaBoton = boton.dataset.bodyMetric;
+    const estaActivo = metricaBoton === metricaCorporalSeleccionada;
+
+    boton.disabled = !disponibilidad[metricaBoton];
+    boton.classList.toggle('active', estaActivo);
+    boton.setAttribute('aria-pressed', String(estaActivo));
+  });
+}
+
+function pintarGraficaCorporal(animarGrafica, animarCambios) {
+  const medicionesDelPeriodo = obtenerMedicionesDelPeriodo();
+  actualizarSelectorCorporal(medicionesDelPeriodo);
+  const mostrarGrasa = metricaCorporalSeleccionada === 'fat';
+  const campo = mostrarGrasa ? 'porcentajeGrasa' : 'pesoLibras';
+  const unidadCambio = mostrarGrasa ? ' pp' : ' ' + obtenerUnidadPeso();
+  const sufijoGrafica = mostrarGrasa ? '%' : ' ' + obtenerUnidadPeso();
+  const titulo = mostrarGrasa ? 'Grasa corporal' : 'Peso corporal';
+  const mensajeVacio = mostrarGrasa
+    ? 'Añade mediciones de porcentaje de grasa en Hevy.'
+    : 'Añade mediciones de peso en Hevy.';
+
+  const puntos = medicionesDelPeriodo
+    .filter(function (medicion) {
+      return medicion[campo] !== null;
     })
     .map(function (medicion) {
       return {
         fecha: medicion.fecha,
-        valor: medicion.pesoLibras
+        valor: mostrarGrasa
+          ? medicion[campo]
+          : convertirLibrasAUnidad(medicion[campo])
       };
     });
 
+  obtenerElemento('bodyMetricTitle').textContent = titulo;
+
   pintarGraficaLinea(
     obtenerElemento('weightChart'),
-    puntosPeso,
+    puntos,
     {
       animar: animarGrafica,
       iniciarEnCero: false,
-      sufijoValor: ' lb',
-      mensajeVacio: 'Añade mediciones de peso en Hevy.'
+      sufijoValor: sufijoGrafica,
+      tituloAccesible: titulo,
+      mensajeVacio: mensajeVacio
     }
   );
 
-  pintarCambioDePeso(puntosPeso, animarCambios);
+  pintarCambioCorporal(puntos, unidadCambio, animarCambios);
+}
+
+export function seleccionarMetricaCorporal(metrica) {
+  if (metrica !== 'weight' && metrica !== 'fat') {
+    return;
+  }
+
+  metricaCorporalSeleccionada = metrica;
+  pintarGraficaCorporal(true, true);
+}
+
+function pintarIndicadoresAdicionales(seriesEfectivas) {
+  const contenedor = obtenerElemento('trainingInsights');
+  const indicadorRPE = obtenerElemento('rpeInsight');
+  const indicadorCardio = obtenerElemento('cardioInsight');
+  const seriesConRPE = seriesEfectivas.filter(function (serie) {
+    return Number.isFinite(serie.esfuerzoPercibido)
+      && serie.esfuerzoPercibido > 0;
+  });
+  const coberturaRPE = seriesEfectivas.length > 0
+    ? seriesConRPE.length / seriesEfectivas.length
+    : 0;
+  const mostrarRPE = seriesConRPE.length >= 3 && coberturaRPE >= 0.25;
+
+  indicadorRPE.hidden = !mostrarRPE;
+
+  if (mostrarRPE) {
+    const sumaRPE = seriesConRPE.reduce(function (total, serie) {
+      return total + serie.esfuerzoPercibido;
+    }, 0);
+    const promedioRPE = sumaRPE / seriesConRPE.length;
+
+    indicadorRPE.textContent = 'RPE medio '
+      + formatoNumero.format(promedioRPE)
+      + ' · '
+      + Math.round(coberturaRPE * 100)
+      + '% de las series';
+  }
+
+  const distanciaTotal = seriesEfectivas.reduce(function (total, serie) {
+    return total + (serie.distanciaKm || 0);
+  }, 0);
+  const duracionCardioSegundos = seriesEfectivas.reduce(function (total, serie) {
+    return total + (serie.duracionSegundos || 0);
+  }, 0);
+  const mostrarCardio = distanciaTotal > 0 || duracionCardioSegundos > 0;
+
+  indicadorCardio.hidden = !mostrarCardio;
+
+  if (mostrarCardio) {
+    const partesCardio = [];
+
+    if (distanciaTotal > 0) {
+      partesCardio.push(formatoNumero.format(distanciaTotal) + ' km');
+    }
+
+    if (duracionCardioSegundos > 0) {
+      partesCardio.push(
+        crearTextoDuracion(Math.max(1, Math.round(duracionCardioSegundos / 60)))
+      );
+    }
+
+    indicadorCardio.textContent = 'Cardio · ' + partesCardio.join(' · ');
+  }
+
+  contenedor.hidden = !mostrarRPE && !mostrarCardio;
 }
 
 function contarSeriesPorEjercicio(series) {
@@ -624,6 +992,15 @@ function pintarEjerciciosPrincipales(animar) {
 
     nombre.textContent = nombreEjercicio;
     nombre.title = nombreEjercicio;
+    filaEjercicio.setAttribute(
+      'aria-label',
+      'Ver detalle de ' + nombreEjercicio + ', ' + cantidadSeries + ' series efectivas'
+    );
+    filaEjercicio.addEventListener('click', function () {
+      if (establecerValorSelector('exerciseSelect', nombreEjercicio)) {
+        location.hash = 'ejercicios';
+      }
+    });
     const rellenoBarra = filaEjercicio.querySelector('.bar-fill');
     rellenoBarra.style.width = animar ? '0%' : porcentajeBarra + '%';
     rellenoBarra.dataset.targetWidth = porcentajeBarra + '%';
@@ -649,7 +1026,8 @@ export function pintarResumen(configuracionOriginal) {
     animarEntrada: true,
     animarConteos: true,
     animarGraficas: true,
-    animarCambios: true
+    animarCambios: true,
+    animarDatosNuevos: true
   };
   const sesiones = estadoAplicacion.sesionesFiltradas;
   const seriesEfectivas = estadoAplicacion.seriesFiltradas.filter(esSerieEfectiva);
@@ -667,7 +1045,9 @@ export function pintarResumen(configuracionOriginal) {
 
   let cantidadDias = 0;
 
-  if (primeraFecha && ultimaFecha) {
+  if (estadoAplicacion.periodoSeleccionado !== 'all') {
+    cantidadDias = Number(estadoAplicacion.periodoSeleccionado);
+  } else if (primeraFecha && ultimaFecha) {
     cantidadDias = Math.max(
       1,
       (ultimaFecha - primeraFecha) / MILISEGUNDOS_POR_DIA + 1
@@ -680,7 +1060,7 @@ export function pintarResumen(configuracionOriginal) {
     sesionesPorSemana = sesiones.length / Math.max(1, cantidadDias / 7);
   }
 
-  pintarTarjetasResumen(
+  pintarMetricasResumen(
     sesiones,
     seriesEfectivas,
     volumenTotal,
@@ -691,8 +1071,11 @@ export function pintarResumen(configuracionOriginal) {
   );
 
   pintarRangoDeDatos(primeraFecha, ultimaFecha);
+  pintarReferenciaDePeriodo();
+  pintarCalidadDeDatos();
   pintarGraficaDeVolumen(sesiones, configuracion.animarGraficas);
-  pintarConstancia(configuracion.animarCambios);
-  pintarGraficaPeso(configuracion.animarGraficas, configuracion.animarCambios);
+  pintarConstancia(configuracion.animarDatosNuevos);
+  pintarGraficaCorporal(configuracion.animarGraficas, configuracion.animarCambios);
   pintarEjerciciosPrincipales(configuracion.animarCambios);
+  pintarIndicadoresAdicionales(seriesEfectivas);
 }

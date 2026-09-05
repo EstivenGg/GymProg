@@ -1,44 +1,35 @@
 import { aplicarFiltroPeriodo } from './datos.js';
 import {
+  establecerUnidadPeso,
+  obtenerUnidadPeso
+} from './configuracion.js';
+import {
   abrirModalImportacion,
+  cancelarImportacion,
   cerrarModalImportacion,
-  importarArchivos
+  importarArchivos,
+  restaurarDatosIniciales
 } from './importacion.js';
+import { cambiarSeccion } from './navegacion.js';
 import { inicializarSelectoresPersonalizados } from './selector-personalizado.js';
 import { obtenerElemento } from './utilidades.js';
 import { pintarDetalleEjercicio, pintarTableroCompleto } from './vistas/index.js';
+import {
+  seleccionarAgrupacionVolumen,
+  seleccionarMetricaCorporal,
+  seleccionarRutinaVolumen
+} from './vistas/resumen.js';
+import {
+  conectarEventosDeEjercicios,
+  seleccionarMetricaEjercicio
+} from './vistas/ejercicios.js';
 
-export function cambiarSeccion(seccionSolicitada, opciones) {
-  const configuracion = opciones || {};
-  const seccionesPermitidas = ['resumen', 'progreso', 'ejercicios', 'sesiones'];
-  let seccionActiva = 'resumen';
+export { cambiarSeccion } from './navegacion.js';
 
-  if (seccionesPermitidas.includes(seccionSolicitada)) {
-    seccionActiva = seccionSolicitada;
-  }
-
-  document.querySelectorAll('.view').forEach(function (vista) {
-    vista.classList.toggle('active', vista.id === seccionActiva);
-  });
-
-  document.querySelectorAll('.nav-item').forEach(function (enlaceNavegacion) {
-    const correspondeASeccion = enlaceNavegacion.dataset.section === seccionActiva;
-    enlaceNavegacion.classList.toggle('active', correspondeASeccion);
-  });
-
-  const barraLateral = document.querySelector('.sidebar');
-
-  if (barraLateral) {
-    barraLateral.classList.remove('open');
-  }
-
-  const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const comportamiento = configuracion.inmediato || reducirMovimiento
-    ? 'auto'
-    : 'smooth';
-
-  window.scrollTo({ top: 0, behavior: comportamiento });
-}
+const CLAVE_META_SEMANAL = 'hevy-progress-weekly-goal';
+const CLAVE_UNIDAD_PESO = 'hevy-progress-weight-unit';
+const META_SEMANAL_MINIMA = 1;
+const META_SEMANAL_MAXIMA = 14;
 
 export function estabilizarPosicionInicial() {
   if ('scrollRestoration' in history) {
@@ -82,41 +73,83 @@ function alternarTema() {
   pintarTableroCompleto({ modo: 'tema' });
 }
 
-function alternarMenuMovil() {
-  const barraLateral = document.querySelector('.sidebar');
-
-  if (barraLateral) {
-    barraLateral.classList.toggle('open');
-  }
-}
-
-let temporizadorCambioPeriodo = null;
-
 function manejarCambioPeriodo() {
   aplicarFiltroPeriodo();
-  const vistaActiva = document.querySelector('.view.active');
-  const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  pintarTableroCompleto({ modo: 'periodo' });
+}
 
-  clearTimeout(temporizadorCambioPeriodo);
+function normalizarMetaSemanal(valorOriginal) {
+  const valor = Number.parseInt(valorOriginal, 10);
 
-  if (!vistaActiva || reducirMovimiento) {
-    pintarTableroCompleto({ modo: 'periodo' });
+  if (!Number.isFinite(valor)) {
+    return 4;
+  }
+
+  return Math.min(
+    META_SEMANAL_MAXIMA,
+    Math.max(META_SEMANAL_MINIMA, valor)
+  );
+}
+
+function manejarCambioMetaSemanal(evento) {
+  const metaSemanal = normalizarMetaSemanal(evento.target.value);
+
+  evento.target.value = String(metaSemanal);
+  localStorage.setItem(CLAVE_META_SEMANAL, String(metaSemanal));
+  pintarTableroCompleto({ modo: 'interaccion' });
+}
+
+function conectarMetaSemanal() {
+  const entradaMetaSemanal = obtenerElemento('weeklyGoalInput');
+  const metaGuardada = localStorage.getItem(CLAVE_META_SEMANAL);
+
+  entradaMetaSemanal.value = String(normalizarMetaSemanal(
+    metaGuardada === null ? entradaMetaSemanal.value : metaGuardada
+  ));
+  entradaMetaSemanal.addEventListener('change', manejarCambioMetaSemanal);
+}
+
+function actualizarBotonesUnidad() {
+  const unidadActiva = obtenerUnidadPeso();
+
+  document.querySelectorAll('[data-weight-unit]').forEach(function (boton) {
+    const estaActivo = boton.dataset.weightUnit === unidadActiva;
+
+    boton.classList.toggle('active', estaActivo);
+    boton.setAttribute('aria-pressed', String(estaActivo));
+  });
+}
+
+function cambiarUnidadPeso(unidad) {
+  if (unidad === obtenerUnidadPeso()) {
     return;
   }
 
-  vistaActiva.classList.add('is-period-updating');
+  establecerUnidadPeso(unidad);
+  localStorage.setItem(CLAVE_UNIDAD_PESO, obtenerUnidadPeso());
+  actualizarBotonesUnidad();
+  pintarTableroCompleto({ modo: 'unidad' });
+}
 
-  temporizadorCambioPeriodo = window.setTimeout(function () {
-    pintarTableroCompleto({ modo: 'periodo' });
+function conectarSelectorUnidad() {
+  establecerUnidadPeso(localStorage.getItem(CLAVE_UNIDAD_PESO));
+  actualizarBotonesUnidad();
 
-    requestAnimationFrame(function () {
-      vistaActiva.classList.remove('is-period-updating');
+  document.querySelectorAll('[data-weight-unit]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      cambiarUnidadPeso(boton.dataset.weightUnit);
     });
-  }, 70);
+  });
 }
 
 function manejarArchivosSeleccionados(evento) {
-  importarArchivos(evento.target.files);
+  const archivosSeleccionados = evento.target.files;
+
+  // Se limpia el input para que volver a elegir el mismo archivo dispare el
+  // evento otra vez, por ejemplo tras cancelar la vista previa.
+  importarArchivos(archivosSeleccionados).finally(function () {
+    evento.target.value = '';
+  });
 }
 
 function manejarArchivosSoltados(evento) {
@@ -139,6 +172,12 @@ function manejarClicFueraDelModal(evento) {
   if (evento.target === obtenerElemento('importModal')) {
     cerrarModalImportacion();
   }
+}
+
+// Cerrar el modal, con la X o con Escape, descarta la importación pendiente:
+// no debe quedar una confirmación a medias esperando en segundo plano.
+function manejarCierreDelModal() {
+  cancelarImportacion();
 }
 
 function manejarCambioDeSeccion() {
@@ -224,18 +263,48 @@ function manejarScroll() {
 }
 
 export function conectarEventos() {
+  conectarSelectorUnidad();
   inicializarSelectoresPersonalizados();
+  conectarMetaSemanal();
+  conectarEventosDeEjercicios();
+
+  document.querySelectorAll('[data-body-metric]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      seleccionarMetricaCorporal(boton.dataset.bodyMetric);
+    });
+  });
+
+  obtenerElemento('exerciseMetricToggle').addEventListener('click', function (evento) {
+    const boton = evento.target.closest('[data-exercise-metric]');
+
+    if (boton) {
+      seleccionarMetricaEjercicio(boton.dataset.exerciseMetric);
+    }
+  });
+
+  obtenerElemento('volumeGroupToggle').addEventListener('click', function (evento) {
+    const boton = evento.target.closest('[data-volume-group]');
+
+    if (boton) {
+      seleccionarAgrupacionVolumen(boton.dataset.volumeGroup);
+    }
+  });
+
+  obtenerElemento('routineSelect').addEventListener('change', function (evento) {
+    seleccionarRutinaVolumen(evento.target.value);
+  });
 
   obtenerElemento('periodSelect').addEventListener('change', manejarCambioPeriodo);
   obtenerElemento('exerciseSelect').addEventListener('change', function () {
     pintarDetalleEjercicio();
   });
   obtenerElemento('themeButton').addEventListener('click', alternarTema);
-  obtenerElemento('menuButton').addEventListener('click', alternarMenuMovil);
   obtenerElemento('importButton').addEventListener('click', abrirModalImportacion);
   obtenerElemento('modalClose').addEventListener('click', cerrarModalImportacion);
   obtenerElemento('importModal').addEventListener('click', manejarClicFueraDelModal);
+  obtenerElemento('importModal').addEventListener('close', manejarCierreDelModal);
   obtenerElemento('fileInput').addEventListener('change', manejarArchivosSeleccionados);
+  obtenerElemento('resetDataButton').addEventListener('click', restaurarDatosIniciales);
 
   const zonaDeArrastre = obtenerElemento('dropZone');
 

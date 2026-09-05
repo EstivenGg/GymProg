@@ -26,6 +26,7 @@ export const NOMBRES_DIAS = [
 export const MILISEGUNDOS_POR_DIA = 86_400_000;
 export const DIAS_DEL_CALENDARIO = 365;
 export const CANTIDAD_SEMANAS_CONSTANCIA = 12;
+export const LIBRAS_POR_KILOGRAMO = 2.2046226218;
 
 export const estadoAplicacion = {
   todasLasSeries: [],
@@ -34,7 +35,9 @@ export const estadoAplicacion = {
   seriesFiltradas: [],
   sesionesFiltradas: [],
   fechaMasReciente: new Date(),
-  periodoSeleccionado: 'all'
+  periodoSeleccionado: 'all',
+  unidadPeso: 'lb',
+  origenDatos: { tipo: 'publicado', guardadoEn: null }
 };
 
 export const formatoNumero = new Intl.NumberFormat('es-CO', {
@@ -56,3 +59,27 @@ export const formatoFechaCorta = new Intl.DateTimeFormat('es-CO', {
   day: 'numeric',
   month: 'short'
 });
+
+export function establecerUnidadPeso(unidad) {
+  estadoAplicacion.unidadPeso = unidad === 'kg' ? 'kg' : 'lb';
+}
+
+export function obtenerUnidadPeso() {
+  return estadoAplicacion.unidadPeso;
+}
+
+export function convertirLibrasAUnidad(valorLibras) {
+  if (estadoAplicacion.unidadPeso === 'kg') {
+    return valorLibras / LIBRAS_POR_KILOGRAMO;
+  }
+
+  return valorLibras;
+}
+
+export function formatearCarga(valorLibras, compacto) {
+  const formateador = compacto ? formatoNumeroCompacto : formatoNumero;
+
+  return formateador.format(convertirLibrasAUnidad(valorLibras))
+    + ' '
+    + obtenerUnidadPeso();
+}
