@@ -46,12 +46,23 @@
 
     <main class="main-content">
       <header class="topbar">
+        <a class="topbar-brand" href="#resumen" aria-label="Hevy Progress, inicio">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>Hevy<span>Progress</span></span>
+        </a>
         <div class="welcome">
           <h1>Hola, atleta <span aria-hidden="true">👋</span></h1>
           <p id="todayLabel">TU PROGRESO</p>
         </div>
         <div class="top-actions">
           <div class="top-filters">
+          <fieldset class="period-chips" id="periodChips">
+            <legend class="sr-only">Periodo de análisis</legend>
+            <button type="button" data-period="30" aria-pressed="false">30 d</button>
+            <button type="button" data-period="90" aria-pressed="false">90 d</button>
+            <button type="button" data-period="365" aria-pressed="false">1 año</button>
+            <button type="button" data-period="all" aria-pressed="true">Todo</button>
+          </fieldset>
           <div class="period-control custom-select">
             <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 8h16v12H4V8Z"/></svg>
             <button type="button" class="custom-select-trigger" aria-expanded="false" aria-controls="periodOptions" aria-label="Periodo de análisis">
@@ -97,7 +108,7 @@
 
         <div class="dashboard-grid" id="resumenGrid">
           <article class="panel span-12 accent-panel verdict-panel">
-            <div class="panel-heading"><div><span class="eyebrow">CONSTANCIA</span><h3>Últimas 12 semanas</h3></div><span class="panel-note">Ventana fija · no cambia con el filtro</span></div>
+            <div class="panel-heading"><div><span class="eyebrow">CONSTANCIA</span><h3>Últimas 12 semanas</h3></div><span class="panel-note">Ventana fija<span class="note-extra"> · no cambia con el filtro</span></span></div>
             <div class="verdict-row">
               <div class="verdict-main">
                 <strong id="consistencyValue">0%</strong>
@@ -116,11 +127,13 @@
               <div class="verdict-cell weekly-goal">
                 <div class="weekly-goal-heading">
                   <span class="cell-label">META SEMANAL</span>
-                  <label class="weekly-goal-control">
+                  <div class="weekly-goal-control">
                     <strong id="weeklyGoalValue">0 de</strong>
+                    <button type="button" class="goal-step" data-goal-step="-1" aria-label="Bajar la meta semanal"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
                     <input id="weeklyGoalInput" class="weekly-goal-input" type="number" min="1" max="14" step="1" value="4" inputmode="numeric" aria-label="Meta semanal de sesiones">
-                    <span>sesiones</span>
-                  </label>
+                    <button type="button" class="goal-step" data-goal-step="1" aria-label="Subir la meta semanal"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+                    <span class="goal-unit">sesiones</span>
+                  </div>
                 </div>
                 <progress class="weekly-goal-track" id="weeklyGoalTrack" aria-label="Progreso de la meta semanal" max="4" value="0"></progress>
                 <span class="weekly-goal-copy" id="weeklyGoalCopy">Última semana registrada</span>
@@ -130,6 +143,7 @@
               <div class="week-bars" id="weekBars"></div>
               <div class="week-legend" aria-label="Leyenda de actividad semanal"><span><i class="active"></i>Con entrenamiento</span><span><i class="inactive"></i>Sin entrenamiento</span><span><i class="unavailable"></i>Sin datos</span></div>
             </div>
+            <p class="week-readout" id="weekReadout" aria-live="polite">Toca una semana para ver su detalle.</p>
             <p class="insight consistency-comparison neutral" id="consistencyInsight">La comparación aparecerá con 8 semanas de datos.</p>
           </article>
 
@@ -156,12 +170,13 @@
             </div>
           </article>
 
-          <article class="panel span-12">
+          <article class="panel span-12 volume-panel">
             <div class="panel-heading">
               <div><span class="eyebrow">CARGA DE TRABAJO</span><h3>Volumen con carga <span id="volumeGroupLabel">por sesión</span> · <span id="volumeUnitLabel">lb</span></h3></div>
               <div class="panel-meta">
                 <div class="volume-controls">
                   <div class="custom-select routine-control">
+                    <span class="control-label" aria-hidden="true">Rutina</span>
                     <button type="button" class="custom-select-trigger" aria-expanded="false" aria-controls="routineOptions" aria-label="Rutina">
                       <span class="custom-select-value">Todas las rutinas</span>
                       <svg class="custom-select-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
@@ -184,7 +199,7 @@
             </div>
             <div class="chart chart-large" id="volumeChart"><div class="empty-state">Importa tus datos para ver la evolución.</div></div>
           </article>
-          <article class="panel span-5">
+          <article class="panel span-5 body-panel">
             <div class="panel-heading composition-heading">
               <div><h3 id="bodyMetricTitle">Peso corporal</h3></div>
               <div class="composition-actions">
@@ -193,12 +208,15 @@
                   <button type="button" class="active" data-body-metric="weight" aria-pressed="true">Peso</button>
                   <button type="button" data-body-metric="fat" aria-pressed="false">% grasa</button>
                 </fieldset>
-                <span class="metric-chip neutral" id="weightDelta">Sin registros</span>
+                <div class="body-reading">
+                  <strong class="body-current" id="bodyCurrentValue"></strong>
+                  <span class="metric-chip neutral" id="weightDelta">Sin registros</span>
+                </div>
               </div>
             </div>
             <div class="chart chart-medium" id="weightChart"><div class="empty-state">Añade mediciones de peso en Hevy.</div></div>
           </article>
-          <article class="panel span-7">
+          <article class="panel span-7 exercises-panel">
             <div class="panel-heading"><div><h3>Ejercicios más trabajados</h3></div><span class="panel-note">Por series efectivas</span></div>
             <div class="exercise-bars" id="topExercises"><div class="empty-state">Aún no hay ejercicios.</div></div>
             <div class="training-insights" id="trainingInsights" hidden>
@@ -406,7 +424,7 @@
   </template>
 
   <template id="weekBarTemplate">
-    <span class="week-bar"><svg aria-label="Actividad semanal" viewBox="0 0 1 1"><title>Actividad semanal</title></svg></span>
+    <button type="button" class="week-bar"><svg aria-label="Actividad semanal" viewBox="0 0 1 1"><title>Actividad semanal</title></svg></button>
   </template>
 
   <template id="topExerciseTemplate">

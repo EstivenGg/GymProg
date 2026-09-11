@@ -301,6 +301,12 @@ function crearSelectorPersonalizado(idSelectNativo) {
     sincronizarSelector(seleccion);
   }).observe(select, { childList: true });
 
+  /* El valor también puede cambiarlo otro control, como las pastillas de
+     periodo en móvil: el botón visible tiene que seguir al «select». */
+  select.addEventListener('change', function () {
+    sincronizarSelector(seleccion);
+  });
+
   sincronizarSelector(seleccion);
   selectoresRegistrados.push(seleccion);
 }

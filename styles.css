@@ -954,6 +954,16 @@ body.is-loading #resumen .panel::before {
   background: var(--surface-2);
 }
 
+/* Este panel deja salir el desplegable incluso durante su animación de cierre;
+   alternar el recorte junto con la clase .open hacía que el menú diera un salto. */
+.volume-panel {
+  overflow: visible;
+}
+
+.volume-panel:has(.routine-control.open) {
+  z-index: 5;
+}
+
 .routine-control .custom-select-trigger {
   flex: 1;
   width: auto;
@@ -1464,7 +1474,7 @@ body.is-loading #resumen .panel::before {
   min-width: 0;
 }
 
-.verdict-main strong {
+.verdict-main > strong {
   color: var(--orange);
   background: linear-gradient(135deg, var(--orange), var(--orange-2));
   background-clip: text;
@@ -1518,6 +1528,30 @@ body.is-loading #resumen .panel::before {
   justify-content: space-between;
   gap: 28px;
   margin-bottom: 14px;
+}
+
+/* Piezas que sólo existen en móvil: en el escritorio mandan el desplegable de
+   periodo, el globo de «hover» y el campo numérico de la meta. */
+.week-readout,
+.goal-step,
+.period-chips,
+.control-label,
+.body-current,
+.copy-lead,
+.topbar-brand {
+  display: none;
+}
+
+/* En el escritorio el envoltorio desaparece y el chip queda como estaba,
+   pegado al conmutador de métrica. */
+.body-reading {
+  display: contents;
+}
+
+/* En el escritorio el recuento de semanas se lee corrido, sin destacar. */
+#consistencyCopy strong {
+  color: inherit;
+  font-weight: inherit;
 }
 
 .verdict-panel .insight {
@@ -3220,33 +3254,63 @@ tr.record-new.record-new-flash {
      sumándolo: el objetivo era que cupiera más contenido, no menos. */
   .topbar .icon-button,
   .topbar .import-button {
-    height: 36px;
+    height: 40px;
   }
 
   .topbar .icon-button {
-    width: 36px;
+    width: 40px;
   }
 
+  /* El lb/kg es hermano de las pastillas de periodo: mismo relleno, mismo
+     radio, mismo fondo y botones del mismo alto, o se ven de dos tamaños. */
   .unit-toggle {
-    height: 36px;
+    height: auto;
+    flex: none;
+    padding: 3px;
+    border-radius: 13px;
+    background: var(--surface-2);
   }
 
-  .welcome p {
+  .unit-toggle button {
+    min-width: 40px;
+    height: 40px;
+    padding: 0 8px;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  /* La cabecera lleva la marca, no un saludo: en 390 px el sitio se gasta en
+     decir dónde estás, y quién eres ya lo sabes. */
+  .welcome {
     display: none;
   }
 
-  .welcome h1 {
-    font-size: 17px;
+  .topbar-brand {
+    display: flex;
+    order: 1;
+    flex: 1;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -.4px;
+    text-decoration: none;
+  }
+
+  .topbar-brand > span:last-child span {
+    color: var(--orange);
+  }
+
+  .topbar-brand .brand-mark {
+    flex: none;
   }
 
   /* Los dos grupos pasan a ser hijos directos de la cabecera para poder
      repartirse entre las dos filas: acciones arriba, filtros abajo. */
   .top-actions {
     display: contents;
-  }
-
-  .welcome {
-    order: 1;
   }
 
   .top-buttons {
@@ -3261,16 +3325,93 @@ tr.record-new.record-new-flash {
     gap: 8px;
   }
 
+  /* El periodo pasa a cuatro pastillas: en el desplegable había que abrir la
+     lista y volver a tocar para lo que aquí es un solo toque. */
   .period-control {
-    display: flex;
-    flex: 1;
-    width: auto;
-    min-width: 0;
-    height: 36px;
+    display: none;
   }
 
-  .unit-toggle {
-    flex: none;
+  .period-chips {
+    display: flex;
+    flex: 1;
+    gap: 4px;
+    min-width: 0;
+    margin: 0;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface-2);
+  }
+
+  .period-chips button {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: -.1px;
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+  }
+
+  .period-chips button.active {
+    background: var(--surface-3);
+    color: var(--text);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .16);
+  }
+
+  /* Nada por debajo del pulgar: los segmentos median 26 px de alto y la meta
+     semanal era un campo numérico con flechas de 8 px. */
+  .metric-toggle {
+    padding: 3px;
+    border-radius: 12px;
+  }
+
+  .metric-toggle button {
+    min-height: 44px;
+    padding: 0 12px;
+    border-radius: 9px;
+    font-size: 12px;
+  }
+
+  .weekly-goal-control {
+    gap: 8px;
+  }
+
+  .goal-step {
+    display: grid;
+    width: 44px;
+    height: 44px;
+    place-items: center;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface-2);
+    color: var(--muted);
+    cursor: pointer;
+  }
+
+  .goal-step:active {
+    background: var(--surface-3);
+  }
+
+  .goal-step svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .weekly-goal-input {
+    width: 40px;
+    height: 44px;
+    font-size: 16px;
+  }
+
+  .weekly-goal-heading strong {
+    font-size: 13px;
   }
 
   .import-button {
@@ -3298,6 +3439,75 @@ tr.record-new.record-new-flash {
     font-size: 21px;
   }
 
+  /* Una sola cabecera: la barra superior y la inferior ya dicen dónde estás,
+     así que el título del Resumen sólo queda para los lectores de pantalla. */
+  #resumen .section-heading h2 {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  /* La rejilla de 12 columnas se deshace y el Resumen pasa a ser una pila, de
+     modo que el encabezado puede colocarse donde toca: el rango de fechas es
+     el pie del periodo, así que va justo encima de los totales, no delante de
+     la constancia, que es lo primero que quieres ver. */
+  /* La barra de filtros ya separa de la cabecera: 22 px más de relleno sólo
+     dejan un hueco muerto antes del primer dato. */
+  .view {
+    padding-top: 0;
+  }
+
+  #resumen.view.active {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  #resumenGrid {
+    display: contents;
+  }
+
+  #resumenGrid .verdict-panel {
+    order: 1;
+  }
+
+  #resumen .section-heading {
+    order: 2;
+    gap: 0;
+    margin: 0;
+  }
+
+  #resumenGrid .context-strip {
+    order: 3;
+  }
+
+  #resumenGrid .volume-panel {
+    order: 4;
+  }
+
+  #resumenGrid .body-panel {
+    order: 5;
+  }
+
+  #resumenGrid .exercises-panel {
+    order: 6;
+  }
+
+  /* De las tres líneas de contexto se queda el rango, que es el único dato.
+     El ancla y la calidad del dato son notas de escritorio. */
+  #dataAnchor,
+  #dataQuality {
+    display: none;
+  }
+
+  .data-range {
+    font-size: 12px;
+  }
+
   .session-tools {
     width: 100%;
     align-items: stretch;
@@ -3320,35 +3530,206 @@ tr.record-new.record-new-flash {
     gap: 18px;
   }
 
+  /* El veredicto deja de ser una tarjeta y pasa a ser una banda a sangre: en
+     390 px el borde y sus 18 px de relleno se comían el ancho útil. El orden
+     es el de la respuesta: porcentaje, barras, semana elegida y, sólo al
+     final, racha y meta. En el escritorio van arriba porque hay ancho de
+     sobra; aquí competirían con lo que has venido a mirar. */
+  .panel.verdict-panel {
+    display: flex;
+    flex-direction: column;
+    margin: 0 -16px -14px;
+    padding: 18px 16px 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
   .verdict-panel .verdict-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 14px 18px;
+    display: contents;
+  }
+
+  /* A sangre el resplandor puede crecer: en el diseño es de 220 px y se nota,
+     aquí se quedaba en 170 px al 5 % y el fondo salía plano. */
+  .verdict-panel.accent-panel::after {
+    right: -80px;
+    top: -100px;
+    width: 220px;
+    height: 220px;
+    opacity: .075;
+    filter: blur(8px);
+  }
+
+  /* Una franja separa la banda de los totales, que si no flotan sobre el
+     mismo negro sin que nada diga dónde acaba una cosa y empieza la otra. */
+  #resumen .section-heading::before {
+    content: "";
+    display: block;
+    height: 8px;
+    margin: 0 -16px 10px;
+    background: var(--surface-2);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .verdict-panel .panel-heading {
+    order: 1;
+    align-items: baseline;
     margin-bottom: 16px;
   }
 
   .verdict-panel .verdict-main {
-    grid-column: 1;
+    order: 2;
+    align-items: baseline;
+    gap: 16px;
+    margin-bottom: 20px;
   }
 
-  .verdict-panel .verdict-cell:not(.weekly-goal) {
-    grid-column: 2;
-    align-items: flex-end;
-    text-align: right;
+  /* El porcentaje es la respuesta a «¿voy bien?»: en la banda manda él. */
+  .verdict-panel .verdict-main > strong {
+    font-size: 62px;
+    line-height: .9;
+    letter-spacing: -3px;
   }
 
-  .verdict-panel .weekly-goal {
-    grid-column: 1 / -1;
+  .verdict-panel .week-strip {
+    order: 3;
   }
 
-  .verdict-panel .week-legend {
-    gap: 6px 12px;
+  .verdict-panel .week-readout {
+    order: 4;
+  }
+
+  /* Un solo renglón de encabezado: «CONSTANCIA · ÚLTIMAS 12 SEMANAS». */
+  .verdict-panel .panel-heading > div {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .verdict-panel .eyebrow {
+    margin-bottom: 0;
+  }
+
+  .verdict-panel .panel-heading h3 {
+    color: var(--orange);
     font-size: 11px;
+    font-weight: 850;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+  }
+
+  .verdict-panel .panel-heading h3::before {
+    content: "· ";
   }
 
   .verdict-panel .panel-note {
+    flex: none;
     font-size: 11px;
+  }
+
+  /* «Ventana fija» basta: la coleta explicativa es de escritorio. */
+  .note-extra {
+    display: none;
+  }
+
+  /* «Entrenaste» de apoyo y el recuento como titular, en lugar de una
+     etiqueta en versalitas encima de una frase larga. */
+  .verdict-panel .verdict-main-copy .cell-label,
+  .copy-tail {
+    display: none;
+  }
+
+  .verdict-panel .verdict-main-copy {
+    max-width: none;
+    align-self: baseline;
+    gap: 2px;
+  }
+
+  .copy-lead {
+    display: block;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  #consistencyCopy strong {
+    display: block;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 750;
+    line-height: 1.35;
+  }
+
+  /* Racha y meta, dos filas de lista dentro de una sola tarjeta. */
+  .verdict-panel .verdict-cell:not(.weekly-goal) {
+    order: 5;
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+    min-height: 52px;
+    padding: 15px 16px 14px;
+    border: 1px solid var(--border);
+    border-bottom: 0;
+    border-radius: 16px 16px 0 0;
+    background: var(--surface);
+    text-align: left;
+  }
+
+  .verdict-panel .verdict-cell:not(.weekly-goal) .cell-value {
+    margin-left: auto;
+    font-size: 22px;
+    letter-spacing: -.8px;
+  }
+
+  /* El valor ya dice «2 sem»: repetir «semanas consecutivas» al lado sobra. */
+  #statStreakSub {
+    display: none;
+  }
+
+  .verdict-panel .weekly-goal {
+    order: 6;
+    gap: 10px;
+    padding: 12px 10px 16px 16px;
+    border: 1px solid var(--border);
+    border-radius: 0 0 16px 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .verdict-panel .weekly-goal-heading {
+    align-items: center;
+    min-height: 48px;
+  }
+
+  /* La fila de la meta se queda en «META SEMANAL  − 4 +»: el «3 de» y el
+     «sesiones» ya los cuenta la barra y su pie. */
+  #weeklyGoalValue,
+  .goal-unit,
+  .goal-copy-extra {
+    display: none;
+  }
+
+  .verdict-panel .weekly-goal-copy {
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  /* La leyenda de tres estados no cabe en la banda y las barras ya se
+     entienden: naranja entrenaste, gris no. */
+  .verdict-panel .week-legend {
+    display: none;
+  }
+
+  .verdict-panel .insight {
+    order: 7;
+    padding-top: 0;
+    border-top: 0;
+    font-size: 12px;
+    line-height: 1.5;
   }
 
   .cell-divider {
@@ -3360,8 +3741,71 @@ tr.record-new.record-new-flash {
     flex: 0 0 auto;
   }
 
+  /* La comparativa va bajo las fichas, como en el diseño: colocada encima
+     partía en dos el espacio entre el rango de fechas y los totales. */
   .context-strip .context-note {
+    order: 2;
+    margin: 11px 2px 0;
+    color: var(--subtle);
+    font-size: 11px;
+    line-height: 1.45;
     text-align: left;
+  }
+
+  /* Los tres totales van en fila y cada uno con su propia tarjeta: apilados
+     se llevaban 250 px de pantalla, y encerrados en un panel común el borde
+     de fuera competía con el de dentro. */
+  .panel.context-strip {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .context-strip .context-cells {
+    order: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .context-strip .context-cell {
+    gap: 7px;
+    padding: 13px 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 15px;
+    background: var(--surface);
+  }
+
+  .context-strip .cell-label {
+    font-size: 10px;
+    letter-spacing: .06em;
+  }
+
+  .context-strip .cell-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  .context-strip .cell-value {
+    font-size: 17px;
+    letter-spacing: -.6px;
+    white-space: normal;
+  }
+
+  .context-strip .cell-sub {
+    font-size: 10.5px;
+    line-height: 1.35;
+  }
+
+  .context-strip .trend-badge {
+    padding: 3px 6px;
+    font-size: 10px;
   }
 
   .rep-record {
@@ -3400,6 +3844,137 @@ tr.record-new.record-new-flash {
     flex: 1 1 140px;
   }
 
+  /* Primero el gráfico y después los mandos: el selector de rutina, los tres
+     botones y la leyenda tapaban el dato, y abajo llega el pulgar. */
+  .volume-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .volume-panel > .panel-heading {
+    display: contents;
+  }
+
+  .volume-panel > .panel-heading > div:first-child {
+    order: 1;
+    margin-bottom: 14px;
+  }
+
+  .volume-panel .chart {
+    order: 2;
+  }
+
+  .volume-panel .panel-meta {
+    order: 3;
+    justify-items: stretch;
+    gap: 8px;
+    margin-top: 16px;
+    text-align: left;
+  }
+
+  /* El desplegable de datos es una salida de emergencia de escritorio: en la
+     banda sólo deja una línea muerta bajo cada gráfica. */
+  .chart-data,
+  .volume-legend {
+    display: none;
+  }
+
+  .volume-panel .volume-controls {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  /* La rutina va debajo de la agrupación, como en el diseño, y deja de ser
+     una pastilla apretada: etiqueta a la izquierda, valor y galón a la
+     derecha, en una fila entera. */
+  .volume-panel .routine-control {
+    order: 2;
+    /* En una columna la base de «flex» es alto, no ancho: con «1 1 100%» el
+       control se estiraba a lo largo y dejaba de ser usable. */
+    flex: none;
+    height: 46px;
+    padding: 0 14px;
+    border: 1px solid var(--border);
+    border-radius: 13px;
+    background: var(--surface-2);
+    gap: 10px;
+  }
+
+  .volume-panel .routine-control .control-label {
+    display: block;
+    flex: none;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .volume-panel .routine-control .custom-select-trigger {
+    justify-content: flex-end;
+    height: 100%;
+  }
+
+  .volume-panel .metric-toggle {
+    order: 1;
+    display: flex;
+    flex: none;
+    width: 100%;
+  }
+
+  .volume-panel .metric-toggle button {
+    flex: 1;
+  }
+
+  /* Peso corporal, en el mismo orden: título, dónde estás y cuánto te has
+     movido, el gráfico, y sólo al final el conmutador Peso / % grasa. */
+  .body-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .body-panel > .panel-heading,
+  .body-panel .composition-actions {
+    display: contents;
+  }
+
+  .body-panel > .panel-heading > div:first-child {
+    order: 1;
+    margin-bottom: 8px;
+  }
+
+  /* El valor y su chip van en la misma línea, no uno debajo del otro. */
+  .body-panel .body-reading {
+    display: flex;
+    order: 2;
+    align-items: baseline;
+    gap: 9px;
+  }
+
+  .body-panel .body-current {
+    display: block;
+    font-family: Bahnschrift, "Inter Tight", "Arial Narrow", Inter, ui-sans-serif, sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: -1.2px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .body-panel .chart {
+    order: 3;
+    margin-top: 14px;
+  }
+
+  .body-panel .metric-toggle {
+    display: flex;
+    order: 4;
+    width: 100%;
+    margin-top: 16px;
+  }
+
+  .body-panel .metric-toggle button {
+    flex: 1;
+  }
+
   .panel-heading {
     align-items: start;
     flex-wrap: wrap;
@@ -3410,10 +3985,71 @@ tr.record-new.record-new-flash {
     align-items: stretch;
     flex-direction: column;
     gap: 14px;
+    margin-bottom: 4px;
   }
 
   .week-bars {
     max-width: none;
+    height: 78px;
+    gap: 4px;
+  }
+
+  /* Cada barra se toca en toda la altura de su columna, no sólo en el trozo
+     pintado: una semana sin entrenamiento medía 8 px de alto. */
+  .week-bar {
+    overflow: visible;
+    cursor: pointer;
+    border-radius: 4px 4px 2px 2px;
+  }
+
+  .week-bar::before {
+    content: "";
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: 78px;
+  }
+
+  /* El globo de «hover» no existe en un móvil y se salía por los bordes: el
+     detalle de la semana elegida se lee en una línea fija bajo las barras. */
+  .week-bar:hover::after,
+  .week-bar:focus-visible::after {
+    content: none;
+  }
+
+  .week-bar.selected {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--orange) 45%, transparent);
+  }
+
+  .week-readout {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    margin: 0 0 14px;
+    padding: 0 4px;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .week-readout::before {
+    content: "";
+    flex: none;
+    width: 9px;
+    height: 9px;
+    margin-right: 10px;
+    border-radius: 3px;
+    background: var(--orange);
+  }
+
+  .week-readout.vacia::before {
+    background: var(--surface-3);
+  }
+
+  .week-readout strong {
+    color: var(--text);
+    font-weight: 700;
   }
 
   .week-legend {
@@ -3424,6 +4060,39 @@ tr.record-new.record-new-flash {
 
   .movers {
     grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+
+  /* El nombre pasa a su propia línea y la barra ocupa el ancho: en una
+     columna de 104 px «Press militar con man…» no dice gran cosa. */
+  .exercise-bars {
+    gap: 16px;
+  }
+
+  .exercise-bar-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 8px 12px;
+    padding: 6px;
+  }
+
+  .exercise-bar-row [data-field="name"] {
+    grid-area: 1 / 1;
+    overflow: visible;
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.35;
+    white-space: normal;
+  }
+
+  .exercise-bar-row strong {
+    grid-area: 1 / 2;
+    font-size: 14px;
+  }
+
+  .exercise-bar-row .bar-track {
+    grid-area: 2 / 1 / 3 / -1;
+    height: 8px;
+    border-radius: 999px;
   }
 
   .performance-meta {
@@ -3554,22 +4223,15 @@ tr.record-new.record-new-flash {
     font-size: 10px;
   }
 
-  .verdict-main strong {
-    font-size: 34px;
-    letter-spacing: -1.4px;
-  }
-
   .verdict-main span {
     max-width: none;
   }
 
   .week-bars {
-    height: 54px;
     gap: 4px;
   }
 
   .verdict-panel .verdict-row {
-    gap: 12px 14px;
     margin-bottom: 14px;
   }
 
@@ -3598,11 +4260,6 @@ tr.record-new.record-new-flash {
     flex-direction: column;
   }
 
-  .composition-actions {
-    width: 100%;
-    justify-content: space-between;
-  }
-
   .chart-large,
   .chart-xl {
     height: 245px;
@@ -3618,14 +4275,13 @@ tr.record-new.record-new-flash {
   }
 
   .unit-toggle button {
-    min-width: 24px;
-    padding: 0 4px;
+    min-width: 36px;
+    padding: 0 6px;
   }
 
 
   .exercise-bar-row {
-    grid-template-columns: minmax(104px, 1.6fr) 1fr 30px;
-    gap: 7px;
+    gap: 7px 10px;
   }
 
   .mover-item {
@@ -3648,6 +4304,12 @@ tr.record-new.record-new-flash {
 }
 
 @media (max-width: 370px) {
+  /* En pantallas de 320 px el porcentaje a 62 px deja sin sitio a la copia. */
+  .verdict-panel .verdict-main > strong {
+    font-size: 52px;
+    letter-spacing: -2.4px;
+  }
+
   .weekly-goal-heading {
     align-items: start;
     flex-direction: column;

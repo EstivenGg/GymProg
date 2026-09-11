@@ -107,6 +107,55 @@ function conectarMetaSemanal() {
     metaGuardada === null ? entradaMetaSemanal.value : metaGuardada
   ));
   entradaMetaSemanal.addEventListener('change', manejarCambioMetaSemanal);
+
+  /* En móvil el campo numérico es inservible con el pulgar: los dos botones
+     mueven la meta y reutilizan el mismo camino que escribirla a mano. */
+  document.querySelectorAll('[data-goal-step]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      const paso = Number(boton.dataset.goalStep);
+      const metaNueva = normalizarMetaSemanal(
+        Number(entradaMetaSemanal.value) + paso
+      );
+
+      if (String(metaNueva) === entradaMetaSemanal.value) {
+        return;
+      }
+
+      entradaMetaSemanal.value = String(metaNueva);
+      entradaMetaSemanal.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+}
+
+/* En móvil el periodo se elige con cuatro pastillas en vez de con el
+   desplegable: un toque en lugar de dos. El «select» sigue mandando. */
+function actualizarChipsDePeriodo() {
+  const periodoActivo = obtenerElemento('periodSelect').value;
+
+  document.querySelectorAll('[data-period]').forEach(function (boton) {
+    const estaActivo = boton.dataset.period === periodoActivo;
+
+    boton.classList.toggle('active', estaActivo);
+    boton.setAttribute('aria-pressed', String(estaActivo));
+  });
+}
+
+function conectarChipsDePeriodo() {
+  const selectorPeriodo = obtenerElemento('periodSelect');
+
+  actualizarChipsDePeriodo();
+  selectorPeriodo.addEventListener('change', actualizarChipsDePeriodo);
+
+  document.querySelectorAll('[data-period]').forEach(function (boton) {
+    boton.addEventListener('click', function () {
+      if (boton.dataset.period === selectorPeriodo.value) {
+        return;
+      }
+
+      selectorPeriodo.value = boton.dataset.period;
+      selectorPeriodo.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
 }
 
 function actualizarBotonesUnidad() {
@@ -265,6 +314,7 @@ function manejarScroll() {
 export function conectarEventos() {
   conectarSelectorUnidad();
   inicializarSelectoresPersonalizados();
+  conectarChipsDePeriodo();
   conectarMetaSemanal();
   conectarEventosDeEjercicios();
 

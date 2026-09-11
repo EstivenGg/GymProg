@@ -605,6 +605,50 @@ function crearDescripcionSemana(semana) {
   return rango + ': ' + semana.cantidadSesiones + ' ' + unidad;
 }
 
+function resumirSemana(semana) {
+  if (semana.estado === 'sin-datos') {
+    return 'sin datos';
+  }
+
+  if (semana.estado === 'sin-entrenamiento') {
+    return 'sin entrenamientos';
+  }
+
+  const unidad = semana.cantidadSesiones === 1 ? 'sesión' : 'sesiones';
+
+  return semana.cantidadSesiones + ' ' + unidad;
+}
+
+/* En móvil no hay «hover»: la semana se elige tocándola y su detalle se lee en
+   una línea fija bajo las barras, en lugar de en un globo flotante. */
+function seleccionarSemana(barraElegida) {
+  const contenedor = barraElegida.parentElement;
+
+  if (contenedor) {
+    contenedor.querySelectorAll('.week-bar').forEach(function (barra) {
+      const estaElegida = barra === barraElegida;
+
+      barra.classList.toggle('selected', estaElegida);
+      barra.setAttribute('aria-pressed', String(estaElegida));
+    });
+  }
+
+  const detalle = document.createElement('strong');
+  detalle.textContent = barraElegida.dataset.detalle || '';
+
+  const lectura = obtenerElemento('weekReadout');
+
+  lectura.classList.toggle(
+    'vacia',
+    barraElegida.classList.contains('sin-entrenamiento')
+      || barraElegida.classList.contains('sin-datos')
+  );
+  lectura.replaceChildren(
+    document.createTextNode((barraElegida.dataset.rango || '') + ' · '),
+    detalle
+  );
+}
+
 function crearBarrasDeSemanas(semanas) {
   const barrasDeSemanas = document.createDocumentFragment();
 
@@ -625,6 +669,12 @@ function crearBarrasDeSemanas(semanas) {
     barraDeSemana.style.height = '0%';
     barraDeSemana.dataset.targetHeight = alturaPorcentaje + '%';
     barraDeSemana.dataset.label = descripcion;
+    barraDeSemana.dataset.rango = 'Semana del ' + formatoFechaCorta.format(semana.inicio);
+    barraDeSemana.dataset.detalle = resumirSemana(semana);
+    barraDeSemana.setAttribute('aria-pressed', 'false');
+    barraDeSemana.addEventListener('click', function () {
+      seleccionarSemana(barraDeSemana);
+    });
     const graficoSemana = barraDeSemana.querySelector('svg');
     graficoSemana.setAttribute('aria-label', descripcion);
     graficoSemana.querySelector('title').textContent = descripcion;
@@ -687,16 +737,25 @@ function pintarMetaSemanal(resumen, animar) {
 
   const estadoUltimaSemana = faltantes === 0
     ? 'Meta alcanzada en la última semana registrada'
-    : 'Faltan ' + faltantes + ' para la meta de la última semana registrada';
+    : (faltantes === 1 ? 'Falta 1' : 'Faltan ' + faltantes)
+      + ' para la meta de la última semana registrada';
 
-  obtenerElemento('weeklyGoalCopy').textContent = estadoUltimaSemana
-    + ' · '
+  /* El recuento de semanas en meta es contexto de escritorio: en móvil la
+     banda se queda sólo con el estado de la última semana. */
+  const estadoActual = document.createElement('span');
+  estadoActual.textContent = estadoUltimaSemana;
+
+  const historico = document.createElement('span');
+  historico.className = 'goal-copy-extra';
+  historico.textContent = ' · '
     + resumen.semanasEnMeta
     + ' de '
     + resumen.semanasConDatos
     + ' '
     + (resumen.semanasConDatos === 1 ? 'semana llegó' : 'semanas llegaron')
     + ' a la meta';
+
+  obtenerElemento('weeklyGoalCopy').replaceChildren(estadoActual, historico);
 
   const pista = obtenerElemento('weeklyGoalTrack');
   const valorProgreso = Math.min(cantidad, meta);
@@ -732,10 +791,23 @@ function pintarConstancia(animar) {
   if (resumen.semanasConDatos === 0) {
     obtenerElemento('consistencyCopy').textContent = 'Sin semanas registradas';
   } else {
-    obtenerElemento('consistencyCopy').textContent = resumen.semanasActivas
+    /* Tres piezas para que cada pantalla enseñe lo suyo: en el escritorio se
+       lee corrido, y en móvil manda el recuento y sobra la explicación. */
+    const entrada = document.createElement('span');
+    entrada.className = 'copy-lead';
+    entrada.textContent = 'Entrenaste';
+
+    const semanas = document.createElement('strong');
+    semanas.textContent = resumen.semanasActivas
       + ' de '
       + resumen.semanasConDatos
-      + ' semanas con al menos 1 entrenamiento';
+      + ' semanas';
+
+    const explicacion = document.createElement('span');
+    explicacion.className = 'copy-tail';
+    explicacion.textContent = ' con al menos 1 entrenamiento';
+
+    obtenerElemento('consistencyCopy').replaceChildren(entrada, semanas, explicacion);
   }
 
   pintarMetaSemanal(resumen, animar);
@@ -744,6 +816,14 @@ function pintarConstancia(animar) {
   contenedorBarras.replaceChildren(
     crearBarrasDeSemanas(resumen.semanas)
   );
+
+  const barraActual = contenedorBarras.querySelector('.week-bar.current');
+
+  if (barraActual) {
+    seleccionarSemana(barraActual);
+  } else {
+    obtenerElemento('weekReadout').textContent = 'Toca una semana para ver su detalle.';
+  }
 
   if (animar) {
     contenedorBarras.getBoundingClientRect();
@@ -775,7 +855,7 @@ function obtenerMedicionesDelPeriodo() {
   });
 }
 
-function pintarCambioCorporal(puntos, unidad, animar) {
+function pintarCambioCorporal(puntos, unidad, sufijoValor, animar) {
   const etiquetaCambio = obtenerElemento('weightDelta');
   const textoAnterior = etiquetaCambio.textContent;
   let textoCambio = 'Sin registros';
@@ -790,6 +870,15 @@ function pintarCambioCorporal(puntos, unidad, animar) {
 
     textoCambio = signoDiferencia + formatoNumero.format(diferencia) + unidad;
   }
+
+  /* El último valor medido: en móvil encabeza la tarjeta junto al cambio,
+     porque el chip solo dice cuánto se movió, no dónde estás. Lleva el sufijo
+     de la gráfica («%»), no el del cambio («pp»). */
+  const valorActual = obtenerElemento('bodyCurrentValue');
+
+  valorActual.textContent = puntos.length > 0
+    ? formatoNumero.format(puntos[puntos.length - 1].valor) + sufijoValor
+    : '';
 
   etiquetaCambio.textContent = textoCambio;
   etiquetaCambio.classList.remove('negative');
@@ -869,7 +958,7 @@ function pintarGraficaCorporal(animarGrafica, animarCambios) {
     }
   );
 
-  pintarCambioCorporal(puntos, unidadCambio, animarCambios);
+  pintarCambioCorporal(puntos, unidadCambio, sufijoGrafica, animarCambios);
 }
 
 export function seleccionarMetricaCorporal(metrica) {
